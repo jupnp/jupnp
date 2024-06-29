@@ -59,7 +59,7 @@ public class Reflections {
     // ####################
 
     public static Object get(Field field, Object target) throws Exception {
-        boolean accessible = field.canAccess(target);
+        boolean accessible = canAccessField(field);
         try {
             field.setAccessible(true);
             return field.get(target);
@@ -88,7 +88,7 @@ public class Reflections {
     // ####################
 
     public static void set(Field field, Object target, Object value) throws Exception {
-        boolean accessible = field.canAccess(target);
+        boolean accessible = canAccessField(field);
         try {
             field.setAccessible(true);
             field.set(target, value);
@@ -266,7 +266,7 @@ public class Reflections {
     }
 
     public static Object getAndWrap(Field field, Object target) {
-        boolean accessible = field.canAccess(target);
+        boolean accessible = canAccessField(field);
         try {
             field.setAccessible(true);
             return get(field, target);
@@ -282,7 +282,7 @@ public class Reflections {
     }
 
     public static void setAndWrap(Field field, Object target, Object value) {
-        boolean accessible = field.canAccess(target);
+        boolean accessible = canAccessField(field);
         try {
             field.setAccessible(true);
             set(field, target, value);
@@ -443,5 +443,29 @@ public class Reflections {
         char[] chars = name.toCharArray();
         chars[0] = Character.toLowerCase(chars[0]);
         return new String(chars);
+    }
+
+    /**
+     * Checks if the specified field can be accessed. This method should be replaced by
+     * java.lang.reflect.Field#canAccess when it becomes available in Android.
+     *
+     * @param field the field to check access for
+     * @return true if the field can be accessed, false otherwise
+     */
+    public static boolean canAccessField(Field field) {
+        // Save the original accessibility state of the field
+        boolean isAccessible = field.isAccessible();
+        try {
+            // Try to make the field accessible
+            field.setAccessible(true);
+            // If no exception is thrown, access is possible
+            return true;
+        } catch (SecurityException e) {
+            // Access is not possible
+            return false;
+        } finally {
+            // Restore the original accessibility state of the field
+            field.setAccessible(isAccessible);
+        }
     }
 }

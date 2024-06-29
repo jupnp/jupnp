@@ -15,6 +15,7 @@
  */
 package org.jupnp.model.meta;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -90,7 +91,7 @@ public class Icon implements Validatable {
      */
     public Icon(String mimeType, int width, int height, int depth, String uniqueName, InputStream is)
             throws IOException {
-        this(mimeType, width, height, depth, uniqueName, is.readAllBytes());
+        this(mimeType, width, height, depth, uniqueName, convert(is));
     }
 
     /**
@@ -105,7 +106,7 @@ public class Icon implements Validatable {
 
     /**
      * Use this constructor if your local icon is binary data encoded with <em>BinHex</em>.
-     * 
+     *
      * @param uniqueName Must be a valid URI path segment and unique within the scope of a device.
      * @param binHexEncoded The icon bytes encoded as BinHex.
      */
@@ -156,6 +157,29 @@ public class Icon implements Validatable {
             throw new IllegalStateException("Final value has been set already, model is immutable");
         }
         this.device = device;
+    }
+
+    /**
+     * Converts the given InputStream into a byte array. This method should be replaced by
+     * java.io.InputStream#readAllBytes when Android 13 (API Level 33) is more widely used.
+     *
+     * @param inputStream the InputStream to be converted
+     * @return a byte array containing the data from the InputStream
+     * @throws IOException if an I/O error occurs
+     */
+    public static byte[] convert(InputStream inputStream) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int nRead;
+        byte[] data = new byte[1024];
+
+        // Read data from InputStream in chunks of 1024 bytes
+        while ((nRead = inputStream.read(data, 0, data.length)) != -1) {
+            // Write the read data into ByteArrayOutputStream
+            buffer.write(data, 0, nRead);
+        }
+
+        // Return the complete byte array
+        return buffer.toByteArray();
     }
 
     @Override
