@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>org.jupnp</groupId>
@@ -77,7 +77,7 @@
     <slf4j.version>2.0.11</slf4j.version>
     <osgi.version>7.0.0</osgi.version>
 
-    <spotless.version>2.38.0</spotless.version>
+    <spotless.version>2.44.3</spotless.version>
     <!-- Eclipse Java formatter version 4.26+ does not check test files -->
     <spotless.eclipse.version>4.25</spotless.eclipse.version>
     <spotless.eclipse.wtp.version>4.21.0</spotless.eclipse.wtp.version>
@@ -218,29 +218,21 @@
                 <file>${basedirRoot}/tools/spotless/codestyle.xml</file>
                 <version>${spotless.eclipse.version}</version>
               </eclipse>
-              <removeUnusedImports></removeUnusedImports>
+              <removeUnusedImports/>
               <importOrder>
                 <file>${basedirRoot}/tools/spotless/import-order</file>
               </importOrder>
-              <endWithNewline></endWithNewline>
+              <endWithNewline/>
             </java>
-            <formats>
-              <format>
-                <!-- pom.xml -->
-                <includes>
-                  <include>pom.xml</include>
-                </includes>
-                <eclipseWtp>
-                  <type>XML</type>
-                  <files>
-                    <file>${basedirRoot}/tools/spotless/wst-pom-file.prefs</file>
-                  </files>
-                  <version>${spotless.eclipse.wtp.version}</version>
-                </eclipseWtp>
-                <trimTrailingWhitespace></trimTrailingWhitespace>
-                <endWithNewline></endWithNewline>
-              </format>
-            </formats>
+            <pom>
+              <sortPom>
+                <expandEmptyElements>false</expandEmptyElements>
+                <indentAttribute>schemaLocation</indentAttribute>
+                <predefinedSortOrder>recommended_2008_06</predefinedSortOrder>
+                <sortDependencyExclusions/>
+                <sortDependencyManagement/>
+              </sortPom>
+            </pom>
           </configuration>
           <executions>
             <execution>
@@ -251,14 +243,6 @@
               <phase>initialize</phase>
             </execution>
           </executions>
-        </plugin>
-        <plugin>
-          <groupId>com.github.ekryd.sortpom</groupId>
-          <artifactId>sortpom-maven-plugin</artifactId>
-          <version>3.3.0</version>
-          <configuration>
-            <createBackupFile>false</createBackupFile>
-          </configuration>
         </plugin>
         <plugin>
           <groupId>com.mycila</groupId>
@@ -294,22 +278,6 @@
     </pluginManagement>
 
     <plugins>
-      <plugin>
-        <groupId>com.github.ekryd.sortpom</groupId>
-        <artifactId>sortpom-maven-plugin</artifactId>
-        <executions>
-          <execution>
-            <id>sortpom-verify</id>
-            <goals>
-              <goal>verify</goal>
-            </goals>
-            <phase>verify</phase>
-            <configuration>
-              <verifyFail>Stop</verifyFail>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
       <plugin>
         <groupId>com.diffplug.spotless</groupId>
         <artifactId>spotless-maven-plugin</artifactId>
