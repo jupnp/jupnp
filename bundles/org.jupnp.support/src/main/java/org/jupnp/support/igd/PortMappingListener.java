@@ -24,6 +24,8 @@ import java.util.Map;
 import org.jupnp.model.action.ActionInvocation;
 import org.jupnp.model.message.UpnpResponse;
 import org.jupnp.model.meta.Device;
+import org.jupnp.model.meta.DeviceIdentity;
+import org.jupnp.model.meta.RemoteDeviceIdentity;
 import org.jupnp.model.meta.Service;
 import org.jupnp.model.types.DeviceType;
 import org.jupnp.model.types.ServiceType;
@@ -70,15 +72,19 @@ import org.slf4j.LoggerFactory;
  *
  * @author Christian Bauer
  * @author Amit Kumar Mondal - Code Refactoring
+ * @author Richard Maw - Nullable internalClient, callbacks, InternetGatewayDevice:2
  */
 public class PortMappingListener extends DefaultRegistryListener {
 
     private final Logger logger = LoggerFactory.getLogger(PortMappingListener.class);
 
-    public static final DeviceType IGD_DEVICE_TYPE = new UDADeviceType("InternetGatewayDevice", 1);
-    public static final DeviceType CONNECTION_DEVICE_TYPE = new UDADeviceType("WANConnectionDevice", 1);
+    public static final DeviceType IGD_DEVICE_TYPE_V1 = new UDADeviceType("InternetGatewayDevice", 1);
+    public static final DeviceType IGD_DEVICE_TYPE_V2 = new UDADeviceType("InternetGatewayDevice", 2);
+    public static final DeviceType CONNECTION_DEVICE_TYPE_V1 = new UDADeviceType("WANConnectionDevice", 1);
+    public static final DeviceType CONNECTION_DEVICE_TYPE_V2 = new UDADeviceType("WANConnectionDevice", 2);
 
-    public static final ServiceType IP_SERVICE_TYPE = new UDAServiceType("WANIPConnection", 1);
+    public static final ServiceType IP_SERVICE_TYPE_V1 = new UDAServiceType("WANIPConnection", 1);
+    public static final ServiceType IP_SERVICE_TYPE_V2 = new UDAServiceType("WANIPConnection", 2);
     public static final ServiceType PPP_SERVICE_TYPE = new UDAServiceType("WANPPPConnection", 1);
 
     protected PortMapping[] portMappings;
@@ -101,23 +107,47 @@ public class PortMappingListener extends DefaultRegistryListener {
         if ((connectionService = discoverConnectionService(device)) == null) {
             return;
         }
+        handleInternetGatewayDeviceFound(connectionService);
 
-        logger.debug("Activating port mappings on: {}", connectionService);
-
+        String defaultInternalClient = null;
         final List<PortMapping> activeForService = new ArrayList<>();
         for (final PortMapping pm : portMappings) {
-            new PortMappingAdd(connectionService, registry.getUpnpService().getControlPoint(), pm) {
+            final PortMapping newPm;
+            if (pm.getInternalClient() != null) {
+                newPm = pm;
+            } else {
+                if (defaultInternalClient == null) {
+                    DeviceIdentity deviceIdentity = device.getIdentity();
+                    if (!(deviceIdentity instanceof RemoteDeviceIdentity)) {
+                        handleFailureMessage("Found a non-remote IGD, can't determine default internal client address");
+                        continue;
+                    }
+                    RemoteDeviceIdentity remoteDeviceIdentity = (RemoteDeviceIdentity) deviceIdentity;
+                    defaultInternalClient = remoteDeviceIdentity.getDiscoveredOnLocalAddress().getHostAddress();
+                }
+
+                newPm = new PortMapping();
+                newPm.setEnabled(pm.isEnabled());
+                newPm.setLeaseDurationSeconds(pm.getLeaseDurationSeconds());
+                newPm.setRemoteHost(pm.getRemoteHost());
+                newPm.setExternalPort(pm.getExternalPort());
+                newPm.setInternalPort(pm.getInternalPort());
+                newPm.setProtocol(pm.getProtocol());
+                newPm.setDescription(pm.getDescription());
+                newPm.setInternalClient(defaultInternalClient);
+            }
+
+            new PortMappingAdd(connectionService, registry.getUpnpService().getControlPoint(), newPm) {
 
                 @Override
                 public void success(ActionInvocation invocation) {
-                    logger.debug("Port mapping added: {}", pm);
-                    activeForService.add(pm);
+                    handleSuccessfulMapping(connectionService, newPm, invocation);
+                    activeForService.add(newPm);
                 }
 
                 @Override
                 public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
-                    handleFailureMessage("Failed to add port mapping: " + pm);
-                    handleFailureMessage("Reason: " + defaultMsg);
+                    handleFailedMapping(connectionService, newPm, invocation, operation, defaultMsg);
                 }
             }.run(); // Synchronous!
         }
@@ -153,18 +183,18 @@ public class PortMappingListener extends DefaultRegistryListener {
             while (it.hasNext()) {
                 final PortMapping pm = it.next();
                 logger.debug("Trying to delete port mapping on IGD: {}", pm);
-                new PortMappingDelete(activeEntry.getKey(), registry.getUpnpService().getControlPoint(), pm) {
+                final Service connectionService = activeEntry.getKey();
+                new PortMappingDelete(connectionService, registry.getUpnpService().getControlPoint(), pm) {
 
                     @Override
                     public void success(ActionInvocation invocation) {
-                        logger.debug("Port mapping deleted: {}", pm);
+                        handleSuccessfulUnmapping(connectionService, pm, invocation);
                         it.remove();
                     }
 
                     @Override
                     public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
-                        handleFailureMessage("Failed to delete port mapping: " + pm);
-                        handleFailureMessage("Reason: " + defaultMsg);
+                        handleFailedUnmapping(connectionService, pm, invocation, operation, defaultMsg);
                     }
                 }.run(); // Synchronous!
             }
@@ -172,30 +202,64 @@ public class PortMappingListener extends DefaultRegistryListener {
     }
 
     protected Service<?, ?> discoverConnectionService(Device<?, ?, ?> device) {
-        if (!device.getType().equals(IGD_DEVICE_TYPE)) {
+        DeviceType deviceType = device.getType();
+        if (!deviceType.equals(IGD_DEVICE_TYPE_V1) && !deviceType.equals(IGD_DEVICE_TYPE_V2)) {
             return null;
         }
 
-        Device<?, ?, ?>[] connectionDevices = device.findDevices(CONNECTION_DEVICE_TYPE);
+        Device<?, ?, ?>[] connectionDevices = device.findDevices(CONNECTION_DEVICE_TYPE_V2);
         if (connectionDevices.length == 0) {
-            logger.debug("IGD doesn't support '{}': {}", CONNECTION_DEVICE_TYPE, device);
+            logger.debug("IGD doesn't support '{}': {}", CONNECTION_DEVICE_TYPE_V2, device);
+            connectionDevices = device.findDevices(CONNECTION_DEVICE_TYPE_V1);
+        }
+        if (connectionDevices.length == 0) {
+            logger.debug("IGD doesn't support '{}': {}", CONNECTION_DEVICE_TYPE_V1, device);
             return null;
         }
 
         Device<?, ?, ?> connectionDevice = connectionDevices[0];
         logger.debug("Using first discovered WAN connection device: {}", connectionDevice);
 
-        Service<?, ?> ipConnectionService = connectionDevice.findService(IP_SERVICE_TYPE);
-        Service<?, ?> pppConnectionService = connectionDevice.findService(PPP_SERVICE_TYPE);
+        Service<?, ?> connectionService = connectionDevice.findService(IP_SERVICE_TYPE_V2);
+        if (connectionService == null) {
+            connectionService = connectionDevice.findService(IP_SERVICE_TYPE_V1);
+        }
+        if (connectionService == null) {
+            connectionService = connectionDevice.findService(PPP_SERVICE_TYPE);
+        }
 
-        if (ipConnectionService == null && pppConnectionService == null) {
+        if (connectionService == null) {
             logger.debug("IGD doesn't support IP or PPP WAN connection service: {}", device);
         }
 
-        return ipConnectionService != null ? ipConnectionService : pppConnectionService;
+        return connectionService;
     }
 
     protected void handleFailureMessage(String s) {
         logger.warn(s);
+    }
+
+    protected void handleInternetGatewayDeviceFound(Service service) {
+        logger.debug("Activating port mappings on: {}", service);
+    }
+
+    protected void handleSuccessfulMapping(Service service, PortMapping pm, ActionInvocation invocation) {
+        logger.debug("Port mapping added: {}", pm);
+    }
+
+    protected void handleFailedMapping(Service service, PortMapping pm, ActionInvocation invocation,
+            UpnpResponse operation, String defaultMsg) {
+        handleFailureMessage("Failed to add port mapping: " + pm);
+        handleFailureMessage("Reason: " + defaultMsg);
+    }
+
+    protected void handleSuccessfulUnmapping(Service service, PortMapping pm, ActionInvocation invocation) {
+        logger.debug("Port mapping deleted: {}", pm);
+    }
+
+    protected void handleFailedUnmapping(Service service, PortMapping pm, ActionInvocation invocation,
+            UpnpResponse operation, String defaultMsg) {
+        handleFailureMessage("Failed to delete port mapping: " + pm);
+        handleFailureMessage("Reason: " + defaultMsg);
     }
 }
