@@ -201,15 +201,23 @@ public class JettyStreamClientImpl extends AbstractStreamClient<StreamClientConf
 
     @Override
     protected boolean logExecutionException(Throwable t) {
+        if (t == null) {
+            return false;
+        }
+
         if (t instanceof IllegalStateException) {
             // TODO: Document when/why this happens and why we can ignore it, violating the
             // logging rules of the StreamClient#sendRequest() method
             logger.trace("Illegal state: {}", t.getMessage());
             return true;
-        } else if (t.getMessage().contains("HTTP protocol violation")) {
-            SpecificationViolationReporter.report(t.getMessage());
+        }
+
+        String msg = t.getMessage();
+        if (msg != null && msg.contains("HTTP protocol violation")) {
+            SpecificationViolationReporter.report(msg);
             return true;
         }
+
         return false;
     }
 
