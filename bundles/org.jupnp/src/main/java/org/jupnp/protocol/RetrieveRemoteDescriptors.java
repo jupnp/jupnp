@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.jupnp.UpnpService;
+import org.jupnp.UpnpServiceConfiguration;
 import org.jupnp.binding.xml.DescriptorBindingException;
 import org.jupnp.binding.xml.DeviceDescriptorBinder;
 import org.jupnp.binding.xml.ServiceDescriptorBinder;
@@ -132,9 +133,14 @@ public class RetrieveRemoteDescriptors implements Runnable {
                     rd.getIdentity().getDescriptorURL());
 
             // Extra headers
-            UpnpHeaders headers = getUpnpService().getConfiguration().getDescriptorRetrievalHeaders(rd.getIdentity());
-            if (headers != null) {
-                deviceDescRetrievalMsg.getHeaders().putAll(headers);
+            UpnpServiceConfiguration config = getUpnpService().getConfiguration();
+            if (config != null) {
+                UpnpHeaders headers = config.getDescriptorRetrievalHeaders(rd.getIdentity());
+                if (headers != null) {
+                    deviceDescRetrievalMsg.getHeaders().putAll(headers);
+                }
+            } else {
+                logger.debug("Configuration not available, skipping descriptor retrieval headers");
             }
 
             logger.debug("Sending device descriptor retrieval message: {}", deviceDescRetrievalMsg);
@@ -181,8 +187,14 @@ public class RetrieveRemoteDescriptors implements Runnable {
         RemoteDevice describedDevice = null;
         try {
 
-            DeviceDescriptorBinder deviceDescriptorBinder = getUpnpService().getConfiguration()
-                    .getDeviceDescriptorBinderUDA10();
+            UpnpServiceConfiguration config = getUpnpService().getConfiguration();
+            if (config == null) {
+                logger.warn("Configuration not available, cannot parse device descriptor: {}",
+                        rd.getIdentity().getDescriptorURL());
+                return;
+            }
+
+            DeviceDescriptorBinder deviceDescriptorBinder = config.getDeviceDescriptorBinderUDA10();
 
             describedDevice = deviceDescriptorBinder.describe(rd, descriptorXML);
 
@@ -299,10 +311,14 @@ public class RetrieveRemoteDescriptors implements Runnable {
         StreamRequestMessage serviceDescRetrievalMsg = new StreamRequestMessage(UpnpRequest.Method.GET, descriptorURL);
 
         // Extra headers
-        UpnpHeaders headers = getUpnpService().getConfiguration()
-                .getDescriptorRetrievalHeaders(service.getDevice().getIdentity());
-        if (headers != null) {
-            serviceDescRetrievalMsg.getHeaders().putAll(headers);
+        UpnpServiceConfiguration config = getUpnpService().getConfiguration();
+        if (config != null) {
+            UpnpHeaders headers = config.getDescriptorRetrievalHeaders(service.getDevice().getIdentity());
+            if (headers != null) {
+                serviceDescRetrievalMsg.getHeaders().putAll(headers);
+            }
+        } else {
+            logger.debug("Configuration not available, skipping descriptor retrieval headers");
         }
 
         logger.debug("Sending service descriptor retrieval message: {}", serviceDescRetrievalMsg);
@@ -331,14 +347,24 @@ public class RetrieveRemoteDescriptors implements Runnable {
         }
 
         logger.debug("Received service descriptor, hydrating service model: {}", serviceDescMsg);
-        ServiceDescriptorBinder serviceDescriptorBinder = getUpnpService().getConfiguration()
-                .getServiceDescriptorBinderUDA10();
+        if (config == null) {
+            logger.warn("Configuration not available, cannot parse service descriptor: {}", descriptorURL);
+            return null;
+        }
+
+        ServiceDescriptorBinder serviceDescriptorBinder = config.getServiceDescriptorBinderUDA10();
 
         return serviceDescriptorBinder.describe(service, descriptorContent);
     }
 
     protected List<RemoteService> filterExclusiveServices(RemoteService[] services) {
-        ServiceType[] exclusiveTypes = getUpnpService().getConfiguration().getExclusiveServiceTypes();
+        UpnpServiceConfiguration config = getUpnpService().getConfiguration();
+        if (config == null) {
+            logger.debug("Configuration not available, including all services");
+            return Arrays.asList(services);
+        }
+
+        ServiceType[] exclusiveTypes = config.getExclusiveServiceTypes();
 
         if (exclusiveTypes == null || exclusiveTypes.length == 0) {
             return Arrays.asList(services);
