@@ -33,8 +33,6 @@ import org.jupnp.transport.Router;
  * Tests for RetrieveRemoteDescriptors when configuration is null.
  * This simulates the race condition that can occur when OSGi unbinds
  * the configuration while async tasks are still running.
- *
- * @author GitHub Copilot
  */
 class RetrieveRemoteDescriptorsNullConfigTest {
 

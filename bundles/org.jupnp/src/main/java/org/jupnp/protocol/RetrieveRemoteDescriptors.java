@@ -308,17 +308,18 @@ public class RetrieveRemoteDescriptors implements Runnable {
             return null;
         }
 
+        UpnpServiceConfiguration config = getUpnpService().getConfiguration();
+        if (config == null) {
+            logger.warn("Configuration not available, cannot retrieve service descriptor: {}", descriptorURL);
+            return null;
+        }
+
         StreamRequestMessage serviceDescRetrievalMsg = new StreamRequestMessage(UpnpRequest.Method.GET, descriptorURL);
 
         // Extra headers
-        UpnpServiceConfiguration config = getUpnpService().getConfiguration();
-        if (config != null) {
-            UpnpHeaders headers = config.getDescriptorRetrievalHeaders(service.getDevice().getIdentity());
-            if (headers != null) {
-                serviceDescRetrievalMsg.getHeaders().putAll(headers);
-            }
-        } else {
-            logger.debug("Configuration not available, skipping descriptor retrieval headers");
+        UpnpHeaders headers = config.getDescriptorRetrievalHeaders(service.getDevice().getIdentity());
+        if (headers != null) {
+            serviceDescRetrievalMsg.getHeaders().putAll(headers);
         }
 
         logger.debug("Sending service descriptor retrieval message: {}", serviceDescRetrievalMsg);
@@ -347,11 +348,6 @@ public class RetrieveRemoteDescriptors implements Runnable {
         }
 
         logger.debug("Received service descriptor, hydrating service model: {}", serviceDescMsg);
-        if (config == null) {
-            logger.warn("Configuration not available, cannot parse service descriptor: {}", descriptorURL);
-            return null;
-        }
-
         ServiceDescriptorBinder serviceDescriptorBinder = config.getServiceDescriptorBinderUDA10();
 
         return serviceDescriptorBinder.describe(service, descriptorContent);
