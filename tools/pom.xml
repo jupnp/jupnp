@@ -6,7 +6,7 @@
   <parent>
     <groupId>org.jupnp</groupId>
     <artifactId>jupnp</artifactId>
-    <version>3.0.4-SNAPSHOT</version>
+    <version>3.0.5-SNAPSHOT</version>
   </parent>
 
   <groupId>org.jupnp.pom</groupId>
