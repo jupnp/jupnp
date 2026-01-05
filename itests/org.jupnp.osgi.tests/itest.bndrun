@@ -39,7 +39,7 @@
 	org.ops4j.pax.web.pax-web-runtime;version='[8.0.25,8.0.26)',\
 	org.ops4j.pax.web.pax-web-spi;version='[8.0.25,8.0.26)',\
 	org.ops4j.pax.web.pax-web-tomcat-common;version='[8.0.25,8.0.26)',\
-	org.jupnp;version='[3.0.4,3.0.5)',\
-	org.jupnp.device.simple;version='[3.0.4,3.0.5)',\
-	org.jupnp.osgi;version='[3.0.4,3.0.5)',\
-	org.jupnp.osgi.tests;version='[3.0.4,3.0.5)'
+	org.jupnp;version='[3.0.5,3.0.6)',\
+	org.jupnp.device.simple;version='[3.0.5,3.0.6)',\
+	org.jupnp.osgi;version='[3.0.5,3.0.6)',\
+	org.jupnp.osgi.tests;version='[3.0.5,3.0.6)'
