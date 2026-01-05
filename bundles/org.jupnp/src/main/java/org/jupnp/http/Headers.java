@@ -18,10 +18,12 @@ package org.jupnp.http;
 import java.io.ByteArrayInputStream;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 /**
  * Unifies various HTTP header representations.
@@ -36,6 +38,13 @@ import java.util.Set;
  * @author Christian Bauer
  */
 public class Headers implements Map<String, List<String>> {
+
+    private static final LinkedHashMap<String, String> NORMALIZED_KEYS = new LinkedHashMap<>(16, .75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Entry<String, String> eldest) {
+            return size() > 1024;
+        }
+    };
 
     static final byte CR = 13;
     static final byte LF = 10;
@@ -52,28 +61,24 @@ public class Headers implements Map<String, List<String>> {
 
     public Headers(ByteArrayInputStream inputStream) {
         StringBuilder sb = new StringBuilder(256);
-        Headers headers = new Headers();
         String line = readLine(sb, inputStream);
         String lastHeader = null;
         if (!line.isEmpty()) {
             do {
                 char firstChar = line.charAt(0);
                 if (lastHeader != null && (firstChar == ' ' || firstChar == '\t')) {
-                    List<String> current = headers.get(lastHeader);
+                    List<String> current = this.get(lastHeader);
                     int lastPos = current.size() - 1;
                     String newString = current.get(lastPos) + line.trim();
                     current.set(lastPos, newString);
                 } else {
-                    String[] header = splitHeader(line);
-                    headers.add(header[0], header[1]);
-                    lastHeader = header[0];
+                    lastHeader = splitHeader(line, this::add);
                 }
 
                 sb.delete(0, sb.length());
                 line = readLine(sb, inputStream);
             } while (!line.isEmpty());
         }
-        putAll(headers);
     }
 
     public Headers(boolean normalizeHeaders) {
@@ -163,9 +168,10 @@ public class Headers implements Map<String, List<String>> {
     }
 
     public void set(String key, String value) {
+        String k = normalize(key);
         LinkedList<String> l = new LinkedList<>();
         l.add(value);
-        put(key, l);
+        put(k, l);
     }
 
     private String normalize(String key) {
@@ -175,23 +181,24 @@ public class Headers implements Map<String, List<String>> {
             if (key == null) {
                 return null;
             }
-            if (key.isEmpty()) {
-                return key;
-            }
-            char[] b;
-            b = key.toCharArray();
-            final int caseDiff = 'a' - 'A';// android optimization
+            synchronized (NORMALIZED_KEYS) {
+                return NORMALIZED_KEYS.computeIfAbsent(key, (k) -> {
+                    char[] b;
+                    b = key.toCharArray();
+                    final int caseDiff = 'a' - 'A';// android optimization
 
-            if (b[0] >= 'a' && b[0] <= 'z') {
-                b[0] = (char) (b[0] - caseDiff);
+                    if (b[0] >= 'a' && b[0] <= 'z') {
+                        b[0] = (char) (b[0] - caseDiff);
+                    }
+                    int length = b.length;// android optimization
+                    for (int i = 1; i < length; i++) {
+                        if (b[i] >= 'A' && b[i] <= 'Z') {
+                            b[i] = (char) (b[i] + caseDiff);
+                        }
+                    }
+                    return new String(b);
+                });
             }
-            int length = key.length();// android optimization
-            for (int i = 1; i < length; i++) {
-                if (b[i] >= 'A' && b[i] <= 'Z') {
-                    b[i] = (char) (b[i] + caseDiff);
-                }
-            }
-            result = new String(b);
         }
         return result;
     }
@@ -218,7 +225,7 @@ public class Headers implements Map<String, List<String>> {
         return sb.toString();
     }
 
-    protected String[] splitHeader(String sb) {
+    protected String splitHeader(String sb, BiConsumer<String, String> consumer) {
         int nameStart;
         int nameEnd;
         int colonEnd;
@@ -243,11 +250,13 @@ public class Headers implements Map<String, List<String>> {
         valueStart = findNonWhitespace(sb, colonEnd);
         valueEnd = findEndOfString(sb);
 
+        String name = sb.substring(nameStart, nameEnd);
         // This gets a bit messy because there are really HTTP headers without values (go figure...)
-        return new String[] { sb.substring(nameStart, nameEnd),
+        consumer.accept(name,
                 sb.length() >= valueStart && sb.length() >= valueEnd && valueStart < valueEnd
                         ? sb.substring(valueStart, valueEnd)
-                        : null };
+                        : null);
+        return name;
     }
 
     protected int findNonWhitespace(String sb, int offset) {
