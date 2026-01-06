@@ -42,6 +42,9 @@ public class UDAServiceId extends ServiceId {
     public static final Pattern BROKEN_PATTERN = Pattern
             .compile("urn:" + BROKEN_DEFAULT_NAMESPACE + ":service:(" + Constants.REGEX_ID + ")");
 
+    public static final Pattern UPNP_VIOLATION = Pattern
+            .compile("urn:upnp-orgerviceId:urnchemas-upnp-orgervice:(" + Constants.REGEX_ID + ")");
+
     public UDAServiceId(String id) {
         super(DEFAULT_NAMESPACE, id);
     }
@@ -58,8 +61,7 @@ public class UDAServiceId extends ServiceId {
         }
 
         // TODO: UPNP VIOLATION: Handle garbage sent by Eyecon Android app
-        matcher = Pattern.compile("urn:upnp-orgerviceId:urnchemas-upnp-orgervice:(" + Constants.REGEX_ID + ")")
-                .matcher(s);
+        matcher = UDAServiceId.UPNP_VIOLATION.matcher(s);
         if (matcher.matches()) {
             SpecificationViolationReporter.report("Recovering from Eyecon garbage: {}", s);
             return new UDAServiceId(matcher.group(1));
