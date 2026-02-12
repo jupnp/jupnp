@@ -1,3 +1,4 @@
+package org.jupnp.support.contentdirectory;
 /*
  * Copyright (C) 2011-2025 4th Line GmbH, Switzerland and others
  *
@@ -13,7 +14,6 @@
  *
  * SPDX-License-Identifier: CDDL-1.0
  */
-package org.jupnp.support.contentdirectory;
 
 import static org.jupnp.model.XMLUtil.*;
 
@@ -80,6 +80,31 @@ public class DIDLParser extends SAXParser {
     private final Logger logger = LoggerFactory.getLogger(DIDLParser.class);
 
     public static final String UNKNOWN_TITLE = "Unknown Title";
+
+    private static final TransformerFactory TRANSFORMER_FACTORY = TransformerFactory.newInstance();
+    private static final ThreadLocal<Transformer> TRANSFORMER_WITH_PROLOG = ThreadLocal.withInitial(() -> {
+        try {
+            return TRANSFORMER_FACTORY.newTransformer();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create transformer", e);
+        }
+    });
+    
+    private static final ThreadLocal<Transformer> TRANSFORMER_WITHOUT_PROLOG = ThreadLocal.withInitial(() -> {
+        try {
+            Transformer transformer = TRANSFORMER_FACTORY.newTransformer();
+            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+            return transformer;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create transformer", e);
+        }
+    });
+
+    private static final DocumentBuilderFactory DOCUMENT_BUILDER_FACTORY = DocumentBuilderFactory.newInstance();
+    
+    static {
+        DOCUMENT_BUILDER_FACTORY.setNamespaceAware(true);
+    }
 
     /**
      * Uses the current thread's context classloader to read and unmarshall the given resource.
@@ -300,38 +325,15 @@ public class DIDLParser extends SAXParser {
     // TODO: Yes, this only runs on Android 2.2
 
     protected String documentToString(Document document, boolean omitProlog) throws Exception {
-        TransformerFactory transFactory = TransformerFactory.newInstance();
-
-        // Indentation not supported on Android 2.2
-        // transFactory.setAttribute("indent-number", 4);
-
-        Transformer transformer = transFactory.newTransformer();
-
-        if (omitProlog) {
-            // TODO: UPNP VIOLATION: Terratec Noxon Webradio fails when DIDL content has a prolog
-            // No XML prolog! This is allowed because it is UTF-8 encoded and required
-            // because broken devices will stumble on SOAP messages that contain (even
-            // encoded) XML prologs within a message body.
-            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
-        }
-
-        // Again, Android 2.2 fails hard if you try this.
-        // transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-
+        Transformer transformer = omitProlog ? TRANSFORMER_WITHOUT_PROLOG.get() : TRANSFORMER_WITH_PROLOG.get();
         StringWriter out = new StringWriter();
         transformer.transform(new DOMSource(document), new StreamResult(out));
         return out.toString();
     }
 
-    protected Document buildDOM(DIDLContent content, boolean nestedItems) throws Exception {
-
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setNamespaceAware(true);
-
-        Document d = factory.newDocumentBuilder().newDocument();
-
+	protected Document buildDOM(DIDLContent content, boolean nestedItems) throws Exception {
+        Document d = DOCUMENT_BUILDER_FACTORY.newDocumentBuilder().newDocument();
         generateRoot(content, d, nestedItems);
-
         return d;
     }
 

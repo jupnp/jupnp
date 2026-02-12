@@ -17,7 +17,9 @@ package org.jupnp.support.model;
 
 import java.net.URI;
 
+import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -41,6 +43,13 @@ import org.w3c.dom.Element;
  * </pre>
  */
 public class DescMeta<M> {
+
+    private static final DocumentBuilderFactory DOCUMENT_BUILDER_FACTORY;
+
+    static {
+        DOCUMENT_BUILDER_FACTORY = DocumentBuilderFactory.newInstance();
+        DOCUMENT_BUILDER_FACTORY.setNamespaceAware(true);
+    }
 
     protected String id;
     protected String type;
@@ -89,16 +98,21 @@ public class DescMeta<M> {
         this.metadata = metadata;
     }
 
+    /**
+     * Creates a new metadata document with a desc-wrapper root element.
+     *
+     * @return A new DOM Document with the desc-wrapper root element
+     * @throws RuntimeException if document creation fails
+     */
     public Document createMetadataDocument() {
         try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(true);
-            Document d = factory.newDocumentBuilder().newDocument();
+            DocumentBuilder builder = DOCUMENT_BUILDER_FACTORY.newDocumentBuilder();
+            Document d = builder.newDocument();
             Element rootElement = d.createElementNS(DIDLContent.DESC_WRAPPER_NAMESPACE_URI, "desc-wrapper");
             d.appendChild(rootElement);
             return d;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        } catch (ParserConfigurationException e) {
+            throw new RuntimeException("Failed to create metadata document", e);
         }
     }
 }
