@@ -89,7 +89,7 @@ public class DIDLParser extends SAXParser {
             throw new RuntimeException("Failed to create transformer", e);
         }
     });
-    
+
     private static final ThreadLocal<Transformer> TRANSFORMER_WITHOUT_PROLOG = ThreadLocal.withInitial(() -> {
         try {
             Transformer transformer = TRANSFORMER_FACTORY.newTransformer();
@@ -101,7 +101,7 @@ public class DIDLParser extends SAXParser {
     });
 
     private static final DocumentBuilderFactory DOCUMENT_BUILDER_FACTORY = DocumentBuilderFactory.newInstance();
-    
+
     static {
         DOCUMENT_BUILDER_FACTORY.setNamespaceAware(true);
     }
@@ -331,7 +331,7 @@ public class DIDLParser extends SAXParser {
         return out.toString();
     }
 
-	protected Document buildDOM(DIDLContent content, boolean nestedItems) throws Exception {
+    protected Document buildDOM(DIDLContent content, boolean nestedItems) throws Exception {
         Document d = DOCUMENT_BUILDER_FACTORY.newDocumentBuilder().newDocument();
         generateRoot(content, d, nestedItems);
         return d;
