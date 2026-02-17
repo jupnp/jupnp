@@ -1,4 +1,3 @@
-package org.jupnp.support.contentdirectory;
 /*
  * Copyright (C) 2011-2025 4th Line GmbH, Switzerland and others
  *
@@ -14,6 +13,7 @@ package org.jupnp.support.contentdirectory;
  *
  * SPDX-License-Identifier: CDDL-1.0
  */
+package org.jupnp.support.contentdirectory;
 
 import static org.jupnp.model.XMLUtil.*;
 
@@ -325,6 +325,11 @@ public class DIDLParser extends SAXParser {
     // TODO: Yes, this only runs on Android 2.2
 
     protected String documentToString(Document document, boolean omitProlog) throws Exception {
+        // TODO: UPNP VIOLATION: Terratec Noxon Webradio fails when DIDL content has a prolog
+        // No XML prolog! This is allowed because it is UTF-8 encoded and required
+        // because broken devices will stumble on SOAP messages that contain (even
+        // encoded) XML prologs within a message body.
+
         Transformer transformer = omitProlog ? TRANSFORMER_WITHOUT_PROLOG.get() : TRANSFORMER_WITH_PROLOG.get();
         StringWriter out = new StringWriter();
         transformer.transform(new DOMSource(document), new StreamResult(out));
