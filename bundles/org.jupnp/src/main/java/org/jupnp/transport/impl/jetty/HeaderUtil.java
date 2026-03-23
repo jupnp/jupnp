@@ -23,14 +23,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
-import javax.servlet.http.HttpServletResponse;
-
-import org.eclipse.jetty.client.api.ContentProvider;
-import org.eclipse.jetty.client.api.Request;
-import org.eclipse.jetty.client.api.Response;
+import org.eclipse.jetty.client.Request;
+import org.eclipse.jetty.client.Response;
 import org.eclipse.jetty.http.HttpField;
-import org.eclipse.jetty.http.HttpFields;
+import org.eclipse.jetty.io.Content;
 import org.jupnp.http.Headers;
+
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Converts from/to jUPnP Headers to/from HTTP client (Jetty) header format.
@@ -51,12 +50,13 @@ public class HeaderUtil {
      * @param headers to be added to the {@link Request}
      */
     public static void add(final Request request, final Headers headers) {
-        final HttpFields httpFields = request.getHeaders();
-        for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-            for (final String value : entry.getValue()) {
-                httpFields.add(entry.getKey(), value);
+        request.headers(httpFields -> {
+            for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+                for (final String value : entry.getValue()) {
+                    httpFields.add(entry.getKey(), value);
+                }
             }
-        }
+        });
     }
 
     /**
@@ -97,7 +97,7 @@ public class HeaderUtil {
      */
     public static Headers get(final org.eclipse.jetty.server.Request request) {
         final Headers headers = new Headers();
-        for (HttpField httpField : request.getHttpFields()) {
+        for (HttpField httpField : request.getHeaders()) {
             headers.add(httpField.getName(), httpField.getValue());
         }
 
@@ -111,18 +111,14 @@ public class HeaderUtil {
      * @return {@link Headers}, never {@code null}
      */
     public static String getContent(final Request request) {
-        final ContentProvider provider = request.getContent();
-
-        final StringBuilder sb = new StringBuilder();
-        for (final ByteBuffer next : provider) {
-            final byte[] bytes = new byte[next.capacity()];
-            next.get(bytes);
-            // Should be "payload"
-            final String content = new String(bytes, StandardCharsets.UTF_8);
-            sb.append(content);
+        if (request.getBody() == null) {
+            return "";
         }
-
-        return sb.toString();
+        try {
+            return Content.Source.asString(request.getBody(), StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            throw new RuntimeException("Could not read request body", ex);
+        }
     }
 
     /**
@@ -132,18 +128,17 @@ public class HeaderUtil {
      * @return {@link Headers}, never {@code null}
      */
     public static byte[] getBytes(final Request request) {
-        final ContentProvider provider = request.getContent();
-
-        final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        for (final ByteBuffer next : provider) {
-            final byte[] bytes = new byte[next.capacity()];
-            next.get(bytes);
-
-            // Should be "payload"
-            bos.write(bytes, 0, bytes.length);
+        if (request.getBody() == null) {
+            return new byte[0];
         }
-
-        return bos.toByteArray();
+        try {
+            final ByteBuffer byteBuffer = Content.Source.asByteBuffer(request.getBody());
+            final byte[] bytes = new byte[byteBuffer.remaining()];
+            byteBuffer.get(bytes);
+            return bytes;
+        } catch (IOException ex) {
+            throw new RuntimeException("Could not read request body", ex);
+        }
     }
 
     /**
@@ -153,7 +148,7 @@ public class HeaderUtil {
      * @return {@link Headers}, never {@code null}
      */
     public static byte[] getBytes(final org.eclipse.jetty.server.Request request) throws IOException {
-        final InputStream is = request.getInputStream();
+        final InputStream is = org.eclipse.jetty.server.Request.asInputStream(request);
 
         final ByteArrayOutputStream bos = new ByteArrayOutputStream();
         final byte[] bytes = new byte[1024];

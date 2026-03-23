@@ -15,11 +15,7 @@
  */
 package org.jupnp.transport.impl.osgi;
 
-import java.io.IOException;
-import java.net.URL;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import java.lang.reflect.Proxy;
 
 import org.osgi.service.http.HttpContext;
 
@@ -29,23 +25,18 @@ import org.osgi.service.http.HttpContext;
  * @author Ivan Iliev
  * 
  */
-public class DisableAuthenticationHttpContext implements HttpContext {
+public final class DisableAuthenticationHttpContext {
 
-    public DisableAuthenticationHttpContext() {
+    private DisableAuthenticationHttpContext() {
     }
 
-    @Override
-    public boolean handleSecurity(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        return true;
-    }
-
-    @Override
-    public URL getResource(String name) {
-        return null;
-    }
-
-    @Override
-    public String getMimeType(String name) {
-        return null;
+    public static HttpContext create() {
+        return (HttpContext) Proxy.newProxyInstance(HttpContext.class.getClassLoader(),
+                new Class<?>[] { HttpContext.class }, (proxy, method, args) -> {
+                    if ("handleSecurity".equals(method.getName())) {
+                        return true;
+                    }
+                    return null;
+                });
     }
 }

@@ -19,12 +19,11 @@ import static org.eclipse.jetty.http.HttpHeader.CONNECTION;
 
 import java.util.concurrent.Callable;
 
+import org.eclipse.jetty.client.BytesRequestContent;
+import org.eclipse.jetty.client.ContentResponse;
 import org.eclipse.jetty.client.HttpClient;
-import org.eclipse.jetty.client.api.ContentProvider;
-import org.eclipse.jetty.client.api.ContentResponse;
-import org.eclipse.jetty.client.api.Request;
-import org.eclipse.jetty.client.util.BytesContentProvider;
-import org.eclipse.jetty.client.util.StringContentProvider;
+import org.eclipse.jetty.client.Request;
+import org.eclipse.jetty.client.StringRequestContent;
 import org.eclipse.jetty.http.HttpFields;
 import org.eclipse.jetty.http.HttpVersion;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
@@ -44,7 +43,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Implementation based on <a href="http://www.eclipse.org/jetty/">Jetty 9.2.x</a>.
+ * Implementation based on <a href="http://www.eclipse.org/jetty/">Jetty 12.x</a>.
  * <p>
  *
  * @author Victor Toni - initial contribution
@@ -55,7 +54,7 @@ public class JettyStreamClientImpl extends AbstractStreamClient<StreamClientConf
 
     protected final StreamClientConfigurationImpl configuration;
     protected final HttpClient httpClient;
-    protected final HttpFields defaultHttpFields = new HttpFields();
+    protected final HttpFields.Mutable defaultHttpFields = HttpFields.build();
 
     public JettyStreamClientImpl(StreamClientConfigurationImpl configuration) throws InitializationException {
         this.configuration = configuration;
@@ -117,13 +116,13 @@ public class JettyStreamClientImpl extends AbstractStreamClient<StreamClientConf
         switch (upnpRequest.getMethod()) {
             case POST:
             case NOTIFY:
-                request.content(createContentProvider(requestMessage));
+                request.body(createContentProvider(requestMessage));
                 break;
             default:
         }
 
         // prepare default headers
-        request.getHeaders().add(defaultHttpFields);
+        request.headers(headers -> headers.add(defaultHttpFields));
 
         // FIXME: what about HTTP2 ?
         if (requestMessage.getOperation().getHttpMinorVersion() == 0) {
@@ -135,7 +134,7 @@ public class JettyStreamClientImpl extends AbstractStreamClient<StreamClientConf
             // Even though jetty client is able to close connections properly,
             // it still takes ~30 seconds to do so. This may cause too many
             // connections for installations with many upnp devices.
-            request.header(CONNECTION, "close");
+            request.headers(headers -> headers.add(CONNECTION, "close"));
         }
 
         // Add the default user agent if not already set on the message
@@ -187,9 +186,9 @@ public class JettyStreamClientImpl extends AbstractStreamClient<StreamClientConf
                 responseMessage.setBodyCharacters(bytes);
 
                 return responseMessage;
-            } catch (final RuntimeException e) {
+            } catch (final Exception e) {
                 logger.error("Request: {} failed", request, e);
-                throw e;
+                throw new RuntimeException("Jetty request execution failed", e);
             }
         };
     }
@@ -231,13 +230,13 @@ public class JettyStreamClientImpl extends AbstractStreamClient<StreamClientConf
         }
     }
 
-    protected <O extends UpnpOperation> ContentProvider.Typed createContentProvider(final UpnpMessage<O> upnpMessage) {
+    protected <O extends UpnpOperation> Request.Content createContentProvider(final UpnpMessage<O> upnpMessage) {
         if (upnpMessage.getBodyType().equals(UpnpMessage.BodyType.STRING)) {
             logger.trace("Preparing HTTP request entity as String");
-            return new StringContentProvider(upnpMessage.getBodyString(), upnpMessage.getContentTypeCharset());
+            return new StringRequestContent(upnpMessage.getBodyString(), upnpMessage.getContentTypeCharset());
         } else {
             logger.trace("Preparing HTTP request entity as byte[]");
-            return new BytesContentProvider(upnpMessage.getBodyBytes());
+            return new BytesRequestContent(upnpMessage.getBodyBytes());
         }
     }
 

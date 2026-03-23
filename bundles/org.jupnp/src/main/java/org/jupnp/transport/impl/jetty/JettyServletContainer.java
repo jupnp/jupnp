@@ -18,25 +18,25 @@ package org.jupnp.transport.impl.jetty;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
-import javax.servlet.Servlet;
-
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.jupnp.transport.spi.ServletContainerAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jakarta.servlet.Servlet;
+
 /**
  * A singleton wrapper of a <code>org.eclipse.jetty.server.Server</code>.
  * <p>
- * This {@link ServletContainerAdapter} starts a Jetty 9.4.x instance on its own and stops it.
+ * This {@link ServletContainerAdapter} starts a Jetty 12.x instance on its own and stops it.
  * Only one single context and servlet is registered, to handle UPnP requests.
  * </p>
  * <p>
  * This implementation might work on Android (not tested within JUPnP), dependencies are <code>jetty-server</code>
- * and <code>jetty-servlet</code> Maven modules.
+ * and <code>jetty-ee10-servlet</code> Maven modules.
  * </p>
  *
  * @author Christian Bauer - initial contribution
