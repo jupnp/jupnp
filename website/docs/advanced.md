@@ -500,7 +500,7 @@ For the `StreamClient` SPI, the following implementations are bundled with jUPnP
     </dd>
     <dt>`org.jupnp.transport.impl.jetty.JettyStreamClientImpl`</dt>
     <dd>
-        This implementation is based on the *Jetty 9.4* HTTP client, you need the artifact `org.eclipse.jetty:jetty-client:9.4` on your classpath to use it.
+        This implementation is based on the *Jetty 12* HTTP client, you need the artifact `org.eclipse.jetty:jetty-client:12.0.x` on your classpath to use it.
         This implementation works in any environment, including Android.
         It is the default transport for `AndroidUpnpServiceConfiguration`.
     </dd>
@@ -511,9 +511,9 @@ For the `StreamServer` SPI, the following implementations are bundled with jUPnP
 <dl>
     <dt>`org.jupnp.transport.impl.async.AsyncServletStreamServerImpl`</dt>
     <dd>
-        This implementation is based on the standard *Servlet 3.0* API and can be used in any environment with a compatible servlet container.
-        It requires a `ServletContainerAdapter` to integrate with the servlet container, the bundled `JettyServletContainer` is such an adapter for a standalone *Jetty 9* server.
-        You need the artifact `org.eclipse.jetty:jetty-servlet:9.4` on your classpath to use it.
+        This implementation is based on the standard *Servlet 6.0* API and can be used in any environment with a compatible servlet container.
+        It requires a `ServletContainerAdapter` to integrate with the servlet container, the bundled `JettyServletContainer` is such an adapter for a standalone *Jetty 12* server.
+        You need the artifacts `org.eclipse.jetty:jetty-server:12.0.x` and `org.eclipse.jetty.ee10:jetty-ee10-servlet:12.0.x` on your classpath to use it.
         This implementation works in any environment, including Android.
         It is the default transport for `AndroidUpnpServiceConfiguration`.
         For other containers, write your own adapter and provide it to the `AsyncServletStreamServerConfigurationImpl`.

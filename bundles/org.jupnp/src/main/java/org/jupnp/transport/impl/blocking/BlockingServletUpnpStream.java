@@ -15,12 +15,12 @@
  */
 package org.jupnp.transport.impl.blocking;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.jupnp.model.message.StreamResponseMessage;
 import org.jupnp.protocol.ProtocolFactory;
 import org.jupnp.transport.impl.ServletUpnpStream;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Implementation based on Servlet 2.4 API.

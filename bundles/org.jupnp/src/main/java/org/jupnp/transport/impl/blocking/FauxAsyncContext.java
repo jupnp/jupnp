@@ -15,8 +15,8 @@
  */
 package org.jupnp.transport.impl.blocking;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Faux implementation mimicking Servlet 3.0's AsyncContext. Used to provide blocking execution
