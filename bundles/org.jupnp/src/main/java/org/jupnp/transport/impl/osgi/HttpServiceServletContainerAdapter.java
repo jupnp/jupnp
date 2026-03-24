@@ -89,6 +89,11 @@ public class HttpServiceServletContainerAdapter implements ServletContainerAdapt
                 ClassLoader classLoader = httpService.getClass().getClassLoader();
                 try {
                     Class<?> jakartaServlet = Class.forName("jakarta.servlet.Servlet", false, classLoader);
+                    if (!jakartaServlet.isInstance(servlet)) {
+                        throw new IllegalStateException(
+                                "Detected jakarta HttpService.registerServlet overload but servlet is not assignable: "
+                                        + servlet.getClass().getName());
+                    }
                     httpService.getClass()
                             .getMethod("registerServlet", String.class, jakartaServlet, Dictionary.class,
                                     org.osgi.service.http.HttpContext.class)
@@ -109,7 +114,7 @@ public class HttpServiceServletContainerAdapter implements ServletContainerAdapt
                 this.contextPath = contextPath;
             } catch (InvocationTargetException e) {
                 logger.error("Failed to register UPnP servlet!", e.getTargetException());
-            } catch (ReflectiveOperationException | IllegalStateException e) {
+            } catch (ReflectiveOperationException | IllegalStateException | IllegalArgumentException e) {
                 logger.error("Failed to register UPnP servlet!", e);
             }
         }

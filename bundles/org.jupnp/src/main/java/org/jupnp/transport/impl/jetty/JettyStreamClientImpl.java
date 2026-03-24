@@ -186,6 +186,8 @@ public class JettyStreamClientImpl extends AbstractStreamClient<StreamClientConf
                 responseMessage.setBodyCharacters(bytes);
 
                 return responseMessage;
+            } catch (InterruptedException e) {
+                throw e;
             } catch (final Exception e) {
                 logger.error("Request: {} failed", request, e);
                 throw new RuntimeException("Jetty request execution failed", e);
