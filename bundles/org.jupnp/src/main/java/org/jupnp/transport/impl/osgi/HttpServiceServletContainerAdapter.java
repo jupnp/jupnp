@@ -85,12 +85,27 @@ public class HttpServiceServletContainerAdapter implements ServletContainerAdapt
                 if (servlet instanceof AsyncServlet) {
                     params.put("async-supported", "true");
                 }
-                Class<?> javaxServlet = Class.forName("javax.servlet.Servlet", false,
-                        httpService.getClass().getClassLoader());
-                httpService.getClass()
-                        .getMethod("registerServlet", String.class, javaxServlet, Dictionary.class,
-                                org.osgi.service.http.HttpContext.class)
-                        .invoke(httpService, contextPath, servlet, params, DisableAuthenticationHttpContext.create());
+                Object httpContext = DisableAuthenticationHttpContext.create();
+                ClassLoader classLoader = httpService.getClass().getClassLoader();
+                try {
+                    Class<?> jakartaServlet = Class.forName("jakarta.servlet.Servlet", false, classLoader);
+                    httpService.getClass()
+                            .getMethod("registerServlet", String.class, jakartaServlet, Dictionary.class,
+                                    org.osgi.service.http.HttpContext.class)
+                            .invoke(httpService, contextPath, servlet, params, httpContext);
+                } catch (NoSuchMethodException e) {
+                    Class<?> javaxServlet = Class.forName("javax.servlet.Servlet", false, classLoader);
+                    if (!javaxServlet.isInstance(servlet)) {
+                        throw new IllegalStateException(
+                                "Detected javax HttpService.registerServlet overload but servlet is jakarta: "
+                                        + servlet.getClass().getName(),
+                                e);
+                    }
+                    httpService.getClass()
+                            .getMethod("registerServlet", String.class, javaxServlet, Dictionary.class,
+                                    org.osgi.service.http.HttpContext.class)
+                            .invoke(httpService, contextPath, servlet, params, httpContext);
+                }
                 this.contextPath = contextPath;
             } catch (InvocationTargetException e) {
                 logger.error("Failed to register UPnP servlet!", e.getTargetException());
