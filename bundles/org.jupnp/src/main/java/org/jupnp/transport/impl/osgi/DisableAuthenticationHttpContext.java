@@ -33,8 +33,25 @@ public final class DisableAuthenticationHttpContext {
     public static HttpContext create() {
         return (HttpContext) Proxy.newProxyInstance(HttpContext.class.getClassLoader(),
                 new Class<?>[] { HttpContext.class }, (proxy, method, args) -> {
+                    if (method.getDeclaringClass() == Object.class) {
+                        if ("hashCode".equals(method.getName())) {
+                            return System.identityHashCode(proxy);
+                        }
+                        if ("equals".equals(method.getName())) {
+                            return proxy == args[0];
+                        }
+                        if ("toString".equals(method.getName())) {
+                            return DisableAuthenticationHttpContext.class.getSimpleName();
+                        }
+                    }
                     if ("handleSecurity".equals(method.getName())) {
                         return true;
+                    }
+                    if ("getResource".equals(method.getName())) {
+                        return null;
+                    }
+                    if ("getMimeType".equals(method.getName())) {
+                        return null;
                     }
                     return null;
                 });
