@@ -34,4 +34,4 @@ updates:
       - dependency-name: "*plugin*"
       - dependency-name: "org.eclipse.jdt:ecj" # eclipse compiler
     ignore:
-      - dependency-name: "com.diffplug.spotless:spotless-maven-plugin" # updated together with SAT
+      - dependency-name: "com.diffplug.spotless:spotless-maven-plugin" # updated manually in sync with our formatting configuration; do not update via Dependabot
