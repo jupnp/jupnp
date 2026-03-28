@@ -68,7 +68,7 @@
 
     <android.version>4.1.1.4</android.version>
     <args4j.version>2.0.12</args4j.version>
-    <bnd.version>6.4.0</bnd.version>
+    <bnd.version>7.2.3</bnd.version>
     <jetty.version>9.4.53.v20231009</jetty.version>
     <junit.jupiter.version>5.10.1</junit.jupiter.version>
     <junit.platform.version>1.10.1</junit.platform.version>
