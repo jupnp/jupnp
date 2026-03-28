@@ -56,7 +56,8 @@ public class DatagramProcessorImpl implements DatagramProcessor {
                         "-===================================== DATAGRAM END =============================================");
             }
 
-            ByteArrayInputStream is = new ByteArrayInputStream(datagram.getData());
+            ByteArrayInputStream is = new ByteArrayInputStream(datagram.getData(), datagram.getOffset(),
+                    datagram.getLength());
 
             String[] startLine = Headers.readLine(is).split(" ");
             if (startLine[0].startsWith("HTTP/1.")) {
