@@ -19,7 +19,6 @@ const config: Config = {
   projectName: 'jupnp', // Usually your repo name.
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -29,23 +28,34 @@ const config: Config = {
     locales: ['en'],
   },
 
+  future: {
+    v4: {
+      removeLegacyPostBuildHeadAttribute: true,
+      useCssCascadeLayers: true,
+    },
+    experimental_faster: {
+      swcJsLoader: true,
+      swcJsMinimizer: true,
+      swcHtmlMinimizer: true,
+      lightningCssMinimizer: true,
+      rspackBundler: true,
+      rspackPersistentCache: true,
+      mdxCrossCompilerCache: true,
+      ssgWorkerThreads: true,
+    },
+  },
+
   presets: [
     [
       'classic',
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/jupnp/jupnp/edit/main/website',
+          editUrl: 'https://github.com/jupnp/jupnp/edit/main/website',
         },
         blog: {
           showReadingTime: true,
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/jupnp/jupnp/edit/main/website',
+          editUrl: 'https://github.com/jupnp/jupnp/edit/main/website',
         },
         theme: {
           customCss: './src/css/custom.css',
@@ -57,6 +67,17 @@ const config: Config = {
   plugins: [[require.resolve('docusaurus-lunr-search'), {
     disableVersioning: true
   }]],
+
+  themes: [
+    "@docusaurus/theme-mermaid"
+  ],
+
+  markdown: {
+    mermaid: true,
+    hooks: {
+        onBrokenMarkdownLinks: 'warn',
+    },
+  },
 
   themeConfig: {
     // Replace with your project's social card
