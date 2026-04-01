@@ -1,7 +1,7 @@
 [![GitHub Actions Build Status](https://github.com/jupnp/jupnp/actions/workflows/ci-build.yml/badge.svg?branch=main)](https://github.com/jupnp/jupnp/actions/workflows/ci-build.yml)
 [![GitHub Actions Website Status](https://github.com/jupnp/jupnp/actions/workflows/deploy-website.yml/badge.svg?branch=main)](https://github.com/jupnp/jupnp/actions/workflows/deploy-website.yml)
 [![CDDL-1.0](https://img.shields.io/badge/license-CDDL%201.0-green.svg)](https://opensource.org/license/cddl-1-0/)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/org.jupnp/org.jupnp/badge.svg)](https://maven-badges.herokuapp.com/maven-central/org.jupnp/org.jupnp) 
+[![Maven Central](https://img.shields.io/maven-central/v/org.jupnp/org.jupnp)](https://central.sonatype.com/artifact/org.jupnp/org.jupnp/)
 [![Javadocs](https://www.javadoc.io/badge/org.jupnp/org.jupnp.svg)](https://www.javadoc.io/doc/org.jupnp/org.jupnp)
 
 # Introduction
