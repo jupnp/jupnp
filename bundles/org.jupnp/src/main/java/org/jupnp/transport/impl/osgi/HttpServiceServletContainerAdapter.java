@@ -16,20 +16,19 @@
 package org.jupnp.transport.impl.osgi;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Dictionary;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
-
-import javax.servlet.Servlet;
-import javax.servlet.ServletException;
 
 import org.jupnp.transport.impl.async.AsyncServlet;
 import org.jupnp.transport.spi.ServletContainerAdapter;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.http.HttpService;
-import org.osgi.service.http.NamespaceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import jakarta.servlet.Servlet;
 
 /**
  * This is a servlet container adapter for an OSGi http service.
@@ -86,9 +85,36 @@ public class HttpServiceServletContainerAdapter implements ServletContainerAdapt
                 if (servlet instanceof AsyncServlet) {
                     params.put("async-supported", "true");
                 }
-                httpService.registerServlet(contextPath, servlet, params, new DisableAuthenticationHttpContext());
+                Object httpContext = DisableAuthenticationHttpContext.create();
+                ClassLoader classLoader = httpService.getClass().getClassLoader();
+                try {
+                    Class<?> jakartaServlet = Class.forName("jakarta.servlet.Servlet", false, classLoader);
+                    if (!jakartaServlet.isInstance(servlet)) {
+                        throw new IllegalStateException(
+                                "Detected jakarta HttpService.registerServlet overload but servlet is not assignable: "
+                                        + servlet.getClass().getName());
+                    }
+                    httpService.getClass()
+                            .getMethod("registerServlet", String.class, jakartaServlet, Dictionary.class,
+                                    org.osgi.service.http.HttpContext.class)
+                            .invoke(httpService, contextPath, servlet, params, httpContext);
+                } catch (NoSuchMethodException e) {
+                    Class<?> javaxServlet = Class.forName("javax.servlet.Servlet", false, classLoader);
+                    if (!javaxServlet.isInstance(servlet)) {
+                        throw new IllegalStateException(
+                                "Detected javax HttpService.registerServlet overload but servlet is jakarta: "
+                                        + servlet.getClass().getName(),
+                                e);
+                    }
+                    httpService.getClass()
+                            .getMethod("registerServlet", String.class, javaxServlet, Dictionary.class,
+                                    org.osgi.service.http.HttpContext.class)
+                            .invoke(httpService, contextPath, servlet, params, httpContext);
+                }
                 this.contextPath = contextPath;
-            } catch (ServletException | NamespaceException | IllegalStateException e) {
+            } catch (InvocationTargetException e) {
+                logger.error("Failed to register UPnP servlet!", e.getTargetException());
+            } catch (ReflectiveOperationException | IllegalStateException | IllegalArgumentException e) {
                 logger.error("Failed to register UPnP servlet!", e);
             }
         }

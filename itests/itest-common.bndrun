@@ -1,8 +1,3 @@
--standalone: \
-	../../bom/runtime-index/target/index.xml;name="org.jupnp.bom.runtime-index",\
-	../../bom/test-index/target/index.xml;name="org.jupnp.bom.test-index",\
-	target/index.xml;name="self"
-
 -resolve.effective: active
 
 -tester: biz.aQute.tester.junit-platform
@@ -11,11 +6,13 @@
 Test-Cases: ${classes;CONCRETE;PUBLIC;NAMED;*Test}
 
 -runfw: org.eclipse.osgi
--runee: JavaSE-11
+-runee: JavaSE-17
 
 # An unused random HTTP port is used during tests to prevent resource conflicts
 # This property is set by the build-helper-maven-plugin in the itests pom.xml
--runvm: -Dorg.osgi.service.http.port=${org.osgi.service.http.port}
+-runvm: \
+	-Djava.security.manager=allow,\
+	-Dorg.osgi.service.http.port=${org.osgi.service.http.port}
 
 Bundle-SymbolicName: ${project.artifactId}
 Bundle-Name: ${project.name}
@@ -33,8 +30,9 @@ Export-Package:
 -runrequires.container: \
 	bnd.identity;id='org.osgi.service.event',\
 	bnd.identity;id='org.eclipse.equinox.event',\
+	bnd.identity;id='org.ops4j.pax.web.pax-web-runtime',\
 	bnd.identity;id='org.ops4j.pax.web.pax-web-jetty',\
-	bnd.identity;id='org.ops4j.pax.web.pax-web-runtime'
+	bnd.identity;id='org.eclipse.jetty.ee10.servlet'
 
 -runrequires.junit: \
 	bnd.identity;id='biz.aQute.tester.junit-platform',\
@@ -42,3 +40,9 @@ Export-Package:
 
 -runproperties: \
 	org.ops4j.pax.logging.DefaultServiceLog.level=WARN
+
+-runprovidedcapabilities: \
+	osgi.service;objectClass:List<String>="org.osgi.service.http.HttpService"
+
+-runsystemcapabilities: \
+	osgi.contract;osgi.contract=JakartaServlet;version:Version=6.1

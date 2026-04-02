@@ -20,7 +20,7 @@ import java.util.concurrent.ExecutorService;
 import org.jupnp.transport.spi.AbstractStreamClientConfiguration;
 
 /**
- * Settings for the Jetty 9.4.x implementation.
+ * Settings for the Jetty 12.x implementation.
  *
  * @author Christian Bauer - initial contribution
  * @author Victor Toni - add option for buffer size

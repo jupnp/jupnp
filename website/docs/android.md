@@ -105,7 +105,7 @@ Your client code has to handle such a situation anyway.
 jUPnP uses a custom configuration on Android, the `AndroidUpnpServiceConfiguration`, utilizing the Jetty transport and the `Recovering*` XML parsers and processors.
 See the Javadoc of the class for more information.
 
-*Jetty 9 libraries are required to use jUPnP on Android!*
+*Jetty 12 libraries are required to use jUPnP on Android!*
 
 For example, these dependencies are usually required in a Maven POM for jUPnP to work on Android:
 
@@ -116,8 +116,8 @@ For example, these dependencies are usually required in a Maven POM for jUPnP to
     <version>${jetty.version}</version>
 </dependency>
 <dependency>
-    <groupId>org.eclipse.jetty</groupId>
-    <artifactId>jetty-servlet</artifactId>
+    <groupId>org.eclipse.jetty.ee10</groupId>
+    <artifactId>jetty-ee10-servlet</artifactId>
     <version>${jetty.version}</version>
 </dependency>
 <dependency>

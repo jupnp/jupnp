@@ -17,8 +17,6 @@ package org.jupnp.transport.impl;
 
 import java.net.InetAddress;
 
-import javax.servlet.Servlet;
-
 import org.jupnp.transport.Router;
 import org.jupnp.transport.impl.async.AsyncServlet;
 import org.jupnp.transport.impl.async.AsyncUtil;
@@ -27,6 +25,8 @@ import org.jupnp.transport.spi.InitializationException;
 import org.jupnp.transport.spi.StreamServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import jakarta.servlet.Servlet;
 
 /**
  * Servlet stream server implementation.
@@ -63,7 +63,7 @@ public class ServletStreamServerImpl implements StreamServer<ServletStreamServer
 
             String contextPath = router.getConfiguration().getNamespace().getBasePath().getPath();
 
-            // Instantiate async or blocking servlet depending on javax.servlet runtime version
+            // Instantiate async or blocking servlet depending on jakarta.servlet runtime version
             Servlet servlet;
             if (AsyncUtil.SERVLET3_SUPPORT) {
                 servlet = createAsyncServlet(router);
