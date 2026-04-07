@@ -41,10 +41,7 @@ import org.jupnp.transport.impl.MulticastReceiverConfigurationImpl;
 import org.jupnp.transport.impl.MulticastReceiverImpl;
 import org.jupnp.transport.impl.NetworkAddressFactoryImpl;
 import org.jupnp.transport.impl.SOAPActionProcessorImpl;
-import org.jupnp.transport.impl.ServletStreamServerConfigurationImpl;
-import org.jupnp.transport.impl.ServletStreamServerImpl;
 import org.jupnp.transport.impl.jetty.StreamClientConfigurationImpl;
-import org.jupnp.transport.impl.osgi.HttpServiceServletContainerAdapter;
 import org.jupnp.transport.spi.DatagramIO;
 import org.jupnp.transport.spi.DatagramProcessor;
 import org.jupnp.transport.spi.GENAEventProcessor;
@@ -59,9 +56,6 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.ConfigurationPolicy;
 import org.osgi.service.component.annotations.Deactivate;
-import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.component.annotations.ReferenceCardinality;
-import org.osgi.service.http.HttpService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -133,8 +127,6 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
     protected Integer retryIterations = 5;
     protected Integer retryAfterSeconds = (int) TimeUnit.MINUTES.toSeconds(10);
 
-    protected HttpService httpService;
-
     /**
      * Defaults to port '0', ephemeral.
      */
@@ -192,15 +184,6 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
         logger.debug("{} deactivated", this);
     }
 
-    @Reference(cardinality = ReferenceCardinality.OPTIONAL)
-    public void setHttpService(HttpService httpService) {
-        this.httpService = httpService;
-    }
-
-    public void unsetHttpService(HttpService httpService) {
-        this.httpService = null;
-    }
-
     @Override
     public DatagramProcessor getDatagramProcessor() {
         return datagramProcessor;
@@ -244,14 +227,6 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
     @Override
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory) {
-        if (httpService != null) {
-            logger.debug("createStreamServer using OSGi HttpService");
-            return new ServletStreamServerImpl(new ServletStreamServerConfigurationImpl(
-                    HttpServiceServletContainerAdapter.getInstance(httpService, context),
-                    httpProxyPort != -1 ? httpProxyPort : callbackURI.getBasePath().getPort()));
-        }
-
-        logger.debug("createStreamServer without OSGi HttpService");
         return transportConfiguration.createStreamServer(networkAddressFactory.getStreamListenPort());
     }
 
