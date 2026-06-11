@@ -18,8 +18,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [ '11' ]
-        maven: [ '3.9.9' ]
+        java: [ '17' ]
+        maven: [ '3.9.14' ]
         os: [ 'macos-15', 'ubuntu-24.04', 'windows-2022' ]
     name: Build (Java ${{ matrix.java }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}

@@ -17,20 +17,20 @@ package org.jupnp.transport.impl.async;
 
 import java.io.IOException;
 
-import javax.servlet.AsyncContext;
-import javax.servlet.AsyncEvent;
-import javax.servlet.AsyncListener;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.jupnp.model.message.Connection;
 import org.jupnp.transport.Router;
 import org.jupnp.transport.impl.ServletConnection;
 import org.jupnp.transport.impl.ServletStreamServerConfigurationImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import jakarta.servlet.AsyncContext;
+import jakarta.servlet.AsyncEvent;
+import jakarta.servlet.AsyncListener;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Http servlet implementation that uses the {@link Router}'s executor to process the current request and releases the

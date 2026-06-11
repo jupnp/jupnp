@@ -15,7 +15,7 @@
  */
 package org.jupnp.transport.impl.async;
 
-import javax.servlet.ServletRequest;
+import jakarta.servlet.ServletRequest;
 
 /**
  * Utility class containing helper methods for the support of the Servlet 2.4
