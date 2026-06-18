@@ -93,4 +93,4 @@ public class Main {
 }
 ```
 
-You need `org.jupnp-x.y.z.jar` and its dependencies (javax.servlet-api, jetty-client, jetty-server, slf4j-api JAR files) on your classpath to build and run this code.
+You need `org.jupnp-x.y.z.jar` and its dependencies (jakarta.servlet-api, jetty-client, jetty-server, slf4j-api JAR files) on your classpath to build and run this code.

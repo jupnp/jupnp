@@ -18,9 +18,9 @@ package org.jupnp.transport.impl;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-import javax.servlet.http.HttpServletRequest;
-
 import org.jupnp.model.message.Connection;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * UPNP Connection implementation using a {@link HttpServletRequest}.
