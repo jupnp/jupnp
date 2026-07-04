@@ -60,6 +60,8 @@ import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.ConfigurationPolicy;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.osgi.service.http.HttpService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -203,7 +205,13 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
         logger.debug("{} deactivated", this);
     }
 
-    @Reference
+    /**
+     * The OSGi HttpService is optional: on runtimes that do not provide it (e.g. pax-web 10 and newer, where the
+     * javax HttpService no longer exists), UPnP requests are served by the standalone stream server of the
+     * discovered transport instead of the shared HTTP server. The greedy policy option reactivates this component
+     * when an HttpService appears after activation, so the outcome does not depend on bundle start order.
+     */
+    @Reference(cardinality = ReferenceCardinality.OPTIONAL, policyOption = ReferencePolicyOption.GREEDY)
     public void setHttpService(HttpService httpService) {
         this.httpService = httpService;
     }
