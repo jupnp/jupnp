@@ -117,5 +117,16 @@
     </plugins>
   </build>
 
+  <profiles>
+    <profile>
+      <id>java17</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <modules>
+        <module>org.jupnp.transport.jetty12</module>
+      </modules>
+    </profile>
+  </profiles>
 
 </project>
