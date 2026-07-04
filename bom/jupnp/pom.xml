@@ -46,5 +46,20 @@
     </dependency>
   </dependencies>
 
+  <profiles>
+    <profile>
+      <id>java17</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>org.jupnp</groupId>
+          <artifactId>org.jupnp.transport.jetty12</artifactId>
+          <version>${project.version}</version>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
 
 </project>
