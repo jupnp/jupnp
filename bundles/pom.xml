@@ -20,6 +20,7 @@
     <module>org.jupnp.android</module>
     <module>org.jupnp.osgi</module>
     <module>org.jupnp.support</module>
+    <module>org.jupnp.transport.jetty9</module>
   </modules>
 
   <properties>
@@ -115,5 +116,6 @@
       </plugin>
     </plugins>
   </build>
+
 
 </project>

@@ -17,8 +17,8 @@ package org.jupnp.transport;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.jupnp.UpnpServiceConfiguration;
+import org.jupnp.transport.impl.StreamClientConfigurationImpl;
 import org.jupnp.transport.impl.jetty.JettyTransportConfiguration;
-import org.jupnp.transport.impl.jetty.StreamClientConfigurationImpl;
 import org.jupnp.transport.spi.StreamClient;
 import org.jupnp.transport.spi.StreamClientConfiguration;
 import org.jupnp.transport.spi.StreamServer;

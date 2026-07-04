@@ -13,14 +13,14 @@
  *
  * SPDX-License-Identifier: CDDL-1.0
  */
-package org.jupnp.transport.impl.jetty;
+package org.jupnp.transport.impl;
 
 import java.util.concurrent.ExecutorService;
 
 import org.jupnp.transport.spi.AbstractStreamClientConfiguration;
 
 /**
- * Settings for the Jetty 9.4.x implementation.
+ * Default settings for a {@link org.jupnp.transport.spi.StreamClient}, independent of the transport implementation.
  *
  * @author Christian Bauer - initial contribution
  * @author Victor Toni - add option for buffer size

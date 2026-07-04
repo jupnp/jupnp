@@ -1,6 +1,8 @@
 -include: ../../bnd.bnd
 
 Import-Package: com.sun.net.httpserver;resolution:=optional,\
- org.eclipse.jetty.server;resolution:=optional,\
- org.eclipse.jetty.servlet;resolution:=optional,\
  *
+
+# The transport implementation is discovered at runtime, see TransportConfigurationProvider
+DynamicImport-Package: org.jupnp.transport.impl.jetty,\
+ org.jupnp.transport.impl.jetty12
