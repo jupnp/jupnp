@@ -26,6 +26,11 @@
     </dependency>
     <dependency>
       <groupId>org.jupnp</groupId>
+      <artifactId>org.jupnp.transport.jetty9</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jupnp</groupId>
       <artifactId>org.jupnp.osgi</artifactId>
       <version>${project.version}</version>
     </dependency>

@@ -43,7 +43,7 @@ import org.jupnp.transport.impl.NetworkAddressFactoryImpl;
 import org.jupnp.transport.impl.SOAPActionProcessorImpl;
 import org.jupnp.transport.impl.ServletStreamServerConfigurationImpl;
 import org.jupnp.transport.impl.ServletStreamServerImpl;
-import org.jupnp.transport.impl.jetty.StreamClientConfigurationImpl;
+import org.jupnp.transport.impl.StreamClientConfigurationImpl;
 import org.jupnp.transport.impl.osgi.HttpServiceServletContainerAdapter;
 import org.jupnp.transport.spi.DatagramIO;
 import org.jupnp.transport.spi.DatagramProcessor;
@@ -126,7 +126,7 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
     protected BundleContext context;
 
     @SuppressWarnings("rawtypes")
-    protected TransportConfiguration transportConfiguration;
+    protected volatile TransportConfiguration transportConfiguration;
 
     protected Integer timeoutSeconds = 10;
     protected Integer retryIterations = 5;
@@ -161,8 +161,20 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
 
         this.streamListenPort = streamListenPort;
         this.multicastResponsePort = multicastResponsePort;
+    }
 
-        this.transportConfiguration = TransportConfigurationProvider.getDefaultTransportConfiguration();
+    /**
+     * The transport implementation is discovered lazily so that a configuration can be instantiated without a
+     * transport implementation on the class path.
+     *
+     * @return the discovered {@link TransportConfiguration}
+     */
+    @SuppressWarnings("rawtypes")
+    protected TransportConfiguration getTransportConfiguration() {
+        if (transportConfiguration == null) {
+            transportConfiguration = TransportConfigurationProvider.getDefaultTransportConfiguration();
+        }
+        return transportConfiguration;
     }
 
     @Activate
@@ -218,7 +230,7 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
     @Override
     @SuppressWarnings("rawtypes")
     public StreamClient createStreamClient() {
-        return transportConfiguration.createStreamClient(getSyncProtocolExecutorService(),
+        return getTransportConfiguration().createStreamClient(getSyncProtocolExecutorService(),
                 createStreamClientConfiguration());
     }
 
@@ -251,7 +263,7 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
         }
 
         logger.debug("createStreamServer without OSGi HttpService");
-        return transportConfiguration.createStreamServer(networkAddressFactory.getStreamListenPort());
+        return getTransportConfiguration().createStreamServer(networkAddressFactory.getStreamListenPort());
     }
 
     @Override

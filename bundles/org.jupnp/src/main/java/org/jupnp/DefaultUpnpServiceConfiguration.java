@@ -44,7 +44,7 @@ import org.jupnp.transport.impl.MulticastReceiverConfigurationImpl;
 import org.jupnp.transport.impl.MulticastReceiverImpl;
 import org.jupnp.transport.impl.NetworkAddressFactoryImpl;
 import org.jupnp.transport.impl.SOAPActionProcessorImpl;
-import org.jupnp.transport.impl.jetty.StreamClientConfigurationImpl;
+import org.jupnp.transport.impl.StreamClientConfigurationImpl;
 import org.jupnp.transport.spi.DatagramIO;
 import org.jupnp.transport.spi.DatagramProcessor;
 import org.jupnp.transport.spi.GENAEventProcessor;
@@ -117,7 +117,7 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
     private StreamClientConfiguration configuration;
 
     @SuppressWarnings("rawtypes")
-    private final TransportConfiguration transportConfiguration;
+    private volatile TransportConfiguration transportConfiguration;
 
     /**
      * Defaults to port '0', ephemeral.
@@ -159,7 +159,20 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
         namespace = createNamespace();
 
         configuration = new StreamClientConfigurationImpl(defaultExecutorService);
-        transportConfiguration = TransportConfigurationProvider.getDefaultTransportConfiguration();
+    }
+
+    /**
+     * The transport implementation is discovered lazily so that a configuration can be instantiated (e.g. for
+     * tests with mocked transport) without a transport implementation on the class path.
+     *
+     * @return the discovered {@link TransportConfiguration}
+     */
+    @SuppressWarnings("rawtypes")
+    protected TransportConfiguration getTransportConfiguration() {
+        if (transportConfiguration == null) {
+            transportConfiguration = TransportConfigurationProvider.getDefaultTransportConfiguration();
+        }
+        return transportConfiguration;
     }
 
     @Override
@@ -180,13 +193,13 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
     @Override
     @SuppressWarnings("rawtypes")
     public StreamClient createStreamClient() {
-        return transportConfiguration.createStreamClient(getSyncProtocolExecutorService(), configuration);
+        return getTransportConfiguration().createStreamClient(getSyncProtocolExecutorService(), configuration);
     }
 
     @Override
     @SuppressWarnings("rawtypes")
     public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory) {
-        return transportConfiguration.createStreamServer(networkAddressFactory.getStreamListenPort());
+        return getTransportConfiguration().createStreamServer(networkAddressFactory.getStreamListenPort());
     }
 
     @Override
