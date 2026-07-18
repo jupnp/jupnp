@@ -33,7 +33,7 @@
 	org.eclipse.jetty.util;version='[9.4.53,9.4.54)',\
 	org.eclipse.jetty.util.ajax;version='[9.4.53,9.4.54)',\
 	org.eclipse.jetty.xml;version='[9.4.53,9.4.54)',\
-	org.ops4j.pax.logging.pax-logging-api;version='[2.2.7,2.2.8)',\
+	org.ops4j.pax.logging.pax-logging-api;version='[2.3.4,2.3.5)',\
 	org.ops4j.pax.web.pax-web-api;version='[8.0.25,8.0.26)',\
 	org.ops4j.pax.web.pax-web-jetty;version='[8.0.25,8.0.26)',\
 	org.ops4j.pax.web.pax-web-runtime;version='[8.0.25,8.0.26)',\
