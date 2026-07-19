@@ -13,56 +13,44 @@ on:
       - 'website/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
         java: [ '11' ]
-        maven: [ '3.9.9' ]
-        os: [ 'macos-15', 'ubuntu-24.04', 'windows-2022' ]
+        os: [ 'macos-26', 'ubuntu-24.04', 'windows-2025' ]
+        include:
+          - os: windows-2025
+            maven_command: .\mvnw.cmd
+
     name: Build (Java ${{ matrix.java }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Set up line endings
-        if: ${{ matrix.os == 'windows-2022' }}
+        if: runner.os == 'Windows'
         run: |
           git config --global core.autocrlf false
           git config --global core.eol crlf
 
       - name: Checkout
-        if: github.head_ref == ''
-        uses: actions/checkout@v7
-
-      - name: Checkout merge
-        if: github.head_ref != ''
         uses: actions/checkout@v7
         with:
-          ref: refs/pull/${{github.event.pull_request.number}}/merge
-
-      - name: Set up Cache
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+          persist-credentials: false
 
       - name: Set up Java ${{ matrix.java }}
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
-
-      - name: Set up Maven ${{ matrix.maven }}
-        uses: stCarolas/setup-maven@v5
-        with:
-          maven-version: ${{ matrix.maven }}
+          cache: 'maven'
 
       - name: Build
-        id: build
-        run: mvn clean verify -B -U
+        run: ${{ matrix.maven_command || './mvnw' }} clean verify -B -U
         env:
           MAVEN_OPTS: >-
             -Xmx2g
@@ -71,11 +59,15 @@ jobs:
             -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
 
       - name: Verify Changed Files
-        uses: tj-actions/verify-changed-files@v20
         id: verify-changed-files
+        shell: bash
+        run: |
+          changed_files=$(echo -n "$(git diff --name-only HEAD && git ls-files --others --exclude-standard)" | tr '\n' ' ')
+          echo "changed_files=$changed_files" >> "$GITHUB_OUTPUT"
 
       - name: Fail on Changed Files
         if: steps.verify-changed-files.outputs.changed_files != ''
+        shell: bash
         env:
           CHANGED_FILES: ${{ steps.verify-changed-files.outputs.changed_files }}
         run: |
