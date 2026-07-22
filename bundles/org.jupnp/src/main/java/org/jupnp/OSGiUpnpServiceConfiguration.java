@@ -173,10 +173,16 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
      */
     @SuppressWarnings("rawtypes")
     protected TransportConfiguration getTransportConfiguration() {
-        if (transportConfiguration == null) {
-            transportConfiguration = TransportConfigurationProvider.getDefaultTransportConfiguration();
+        TransportConfiguration result = transportConfiguration;
+        if (result == null) {
+            synchronized (this) {
+                result = transportConfiguration;
+                if (result == null) {
+                    transportConfiguration = result = TransportConfigurationProvider.getDefaultTransportConfiguration();
+                }
+            }
         }
-        return transportConfiguration;
+        return result;
     }
 
     @Activate
