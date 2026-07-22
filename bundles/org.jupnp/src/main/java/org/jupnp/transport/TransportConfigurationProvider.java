@@ -16,6 +16,7 @@
 package org.jupnp.transport;
 
 import java.util.Iterator;
+import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
 import org.jupnp.transport.spi.InitializationException;
@@ -52,11 +53,28 @@ public final class TransportConfigurationProvider {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public static <SCC extends StreamClientConfiguration, SSC extends StreamServerConfiguration> TransportConfiguration<SCC, SSC> getDefaultTransportConfiguration() {
         // Discover implementations announced via META-INF/services
-        Iterator<TransportConfiguration> iterator = ServiceLoader
-                .load(TransportConfiguration.class, TransportConfigurationProvider.class.getClassLoader()).iterator();
-        if (iterator.hasNext()) {
-            TransportConfiguration<SCC, SSC> transportConfiguration = iterator.next();
-            if (iterator.hasNext()) {
+        TransportConfiguration<SCC, SSC> transportConfiguration = null;
+        int found = 0;
+        try {
+            Iterator<TransportConfiguration> iterator = ServiceLoader
+                    .load(TransportConfiguration.class, TransportConfigurationProvider.class.getClassLoader())
+                    .iterator();
+            while (iterator.hasNext()) {
+                try {
+                    TransportConfiguration<SCC, SSC> candidate = iterator.next();
+                    found++;
+                    if (transportConfiguration == null) {
+                        transportConfiguration = candidate;
+                    }
+                } catch (ServiceConfigurationError | LinkageError e) {
+                    LOGGER.debug("Ignoring a transport implementation that could not be loaded via ServiceLoader", e);
+                }
+            }
+        } catch (ServiceConfigurationError | LinkageError e) {
+            LOGGER.debug("ServiceLoader discovery of transport implementations failed", e);
+        }
+        if (transportConfiguration != null) {
+            if (found > 1) {
                 LOGGER.warn(
                         "Multiple transport implementations found on the class path, using '{}'. "
                                 + "Make sure only one jUPnP transport implementation is available.",
