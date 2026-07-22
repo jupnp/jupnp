@@ -498,7 +498,7 @@ The following transport artifacts are available:
         The server side is based on the standard *Servlet 3.0* API.
         It requires a `ServletContainerAdapter` to integrate with the servlet container, the bundled `JettyServletContainer` is such an adapter for a standalone *Jetty 9.4* server.
         For other containers, write your own adapter and provide it to the `ServletStreamServerConfigurationImpl`.
-        This implementation runs on Java 8 (jUPnP 3.x: Java 11) and works in any environment, including Android.
+        This implementation runs on Java 11 or newer and works in any environment, including Android.
         It is the transport used by `AndroidUpnpServiceConfiguration`.
     </dd>
     <dt>`org.jupnp:org.jupnp.transport.jetty12`</dt>

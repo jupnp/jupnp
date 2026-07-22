@@ -93,4 +93,4 @@ public class Main {
 }
 ```
 
-You need `org.jupnp-x.y.z.jar`, a transport implementation such as `org.jupnp.transport.jetty9-x.y.z.jar` (or `org.jupnp.transport.jetty12-x.y.z.jar` when running on Java 17 or newer) and their dependencies (javax.servlet-api, jetty-client, jetty-server, jetty-servlet, slf4j-api JAR files) on your classpath to build and run this code.
+You need `org.jupnp-x.y.z.jar`, a transport implementation such as `org.jupnp.transport.jetty9-x.y.z.jar` (or `org.jupnp.transport.jetty12-x.y.z.jar` when running on Java 17 or newer) and their dependencies (slf4j-api and the required Jetty modules; for Jetty 9.4: javax.servlet-api, jetty-client, jetty-server, jetty-servlet; for Jetty 12: jetty-client, jetty-server) on your classpath to build and run this code.

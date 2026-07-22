@@ -227,7 +227,7 @@ public class JettyStreamClientImpl extends AbstractStreamClient<StreamClientConf
         try {
             httpClient.stop();
         } catch (Exception e) {
-            logger.info("Shutting down of HTTP client throwed exception", e);
+            logger.info("Shutting down of HTTP client threw exception", e);
         }
     }
 

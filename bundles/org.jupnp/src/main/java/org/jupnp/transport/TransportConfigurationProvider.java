@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
  * by looking up well-known implementation classes on the class path.
  * </p>
  *
- * @author Victor Toni - inital contribution
+ * @author Victor Toni - initial contribution
  * @author Holger Friedrich - discover transport implementations instead of hard-wiring Jetty
  */
 public final class TransportConfigurationProvider {
@@ -73,7 +73,7 @@ public final class TransportConfigurationProvider {
                 Class<?> clazz = Class.forName(className);
                 LOGGER.debug("Using transport implementation '{}'", className);
                 return (TransportConfiguration<SCC, SSC>) clazz.getDeclaredConstructor().newInstance();
-            } catch (ClassNotFoundException | NoClassDefFoundError e) {
+            } catch (ClassNotFoundException | NoClassDefFoundError | UnsupportedClassVersionError e) {
                 LOGGER.trace("Transport implementation '{}' is not available", className);
             } catch (ReflectiveOperationException e) {
                 throw new InitializationException("Failed to instantiate transport implementation " + className, e);
