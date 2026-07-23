@@ -1,0 +1,101 @@
+-standalone: \
+	../../bom/runtime-index/target/index.xml;name="org.jupnp.bom.runtime-index",\
+	../../bom/test-index/target/index.xml;name="org.jupnp.bom.test-index",\
+	target/index.xml;name="self"
+
+-resolve.effective: active
+
+-tester: biz.aQute.tester.junit-platform
+
+# Run all integration tests which are named xyzTest
+Test-Cases: ${classes;CONCRETE;PUBLIC;NAMED;*Test}
+
+-runfw: org.eclipse.osgi
+-runee: JavaSE-17
+
+Bundle-SymbolicName: ${project.artifactId}
+Bundle-Name: ${project.name}
+Automatic-Module-Name: ${def;bsn}
+
+# Triggers a single, real transport discovery as early as possible (bundle activation), mirroring how a
+# real consumer (e.g. an add-on bundle in openHAB/Karaf) constructs its UpnpService. See
+# TransportDiscoveryActivator and TransportDiscoveryTest.
+Bundle-Activator: org.jupnp.osgi.tests.jetty12.TransportDiscoveryActivator
+
+# The integration test itself does not export anything.
+Export-Package:
+-exportcontents:
+
+-runblacklist: \
+	bnd.identity;id='osgi.cmpn',\
+	bnd.identity;id='slf4j.api',\
+	bnd.identity;id='slf4j.simple'
+
+-runrequires.junit: \
+	bnd.identity;id='biz.aQute.tester.junit-platform',\
+	bnd.identity;id='junit-jupiter-engine'
+
+-runproperties: \
+	org.ops4j.pax.logging.DefaultServiceLog.level=WARN
+
+# org.apache.aries.spifly.dynamic.bundle and its ASM dependencies are pinned to startlevel=1, and
+# org.jupnp.transport.jetty12 (the ServiceLoader/SPI provider bundle) to startlevel=2, so that the
+# OSGi Service Loader Mediator is active and has registered the transport provider before this bundle
+# (unmarked, defaulting to startlevel=3) performs its first ServiceLoader-based discovery, on bundle
+# activation.
+#
+# TransportConfigurationProvider does briefly retry ServiceLoader discovery before falling back to
+# reflection, but that alone is not enough here: measured empirically (see the jetty9 itest, same
+# mechanism), the gap between this bundle's first attempt and jetty12 actually registering with the
+# mediator spans however long the framework takes to work through the other bundles in its startup
+# sequence first, not a few milliseconds of jitter. This test targets the ServiceLoader/SPI Fly path
+# used by non-DS consumers (TransportDiscoveryActivator here uses DefaultUpnpServiceConfiguration
+# directly). Note that org.jupnp.OSGiUpnpServiceConfiguration (the actual shipped OSGi component) no
+# longer depends on this race at all: it consumes TransportConfiguration via a mandatory Declarative
+# Services @Reference, which defers activation until the transport bundle has registered,
+# deterministically.
+#
+# CAVEAT: the startlevel attribute below is silently dropped whenever the bnd resolver recomputes
+# -runbundles (e.g. `mvn ... -DwithResolver`). If this test starts failing with REFLECTIVE_FALLBACK
+# after a resolver run, re-add ;startlevel=1 to spifly/asm and ;startlevel=2 to jetty12 below.
+-runrequires: \
+	bnd.identity;id='org.jupnp.osgi.tests.jetty12',\
+	bnd.identity;id='org.apache.aries.spifly.dynamic.bundle',\
+	bnd.identity;id='org.jupnp.transport.jetty12',\
+	bnd.identity;id='org.eclipse.jetty.compression.gzip'
+
+#
+# done
+#
+-runbundles: \
+	biz.aQute.tester.junit-platform;version='[6.4.0,6.4.1)',\
+	javax.servlet-api;version='[3.1.0,3.1.1)',\
+	junit-jupiter-api;version='[5.10.1,5.10.2)',\
+	junit-jupiter-engine;version='[5.10.1,5.10.2)',\
+	junit-platform-commons;version='[1.10.1,1.10.2)',\
+	junit-platform-engine;version='[1.10.1,1.10.2)',\
+	junit-platform-launcher;version='[1.10.1,1.10.2)',\
+	org.apache.aries.spifly.dynamic.bundle;version='[1.3.7,1.3.8)';startlevel=1,\
+	org.apache.felix.scr;version='[2.2.10,2.2.11)',\
+	org.eclipse.jetty.alpn.client;version='[12.1.0,12.1.1)',\
+	org.eclipse.jetty.client;version='[12.1.0,12.1.1)',\
+	org.eclipse.jetty.http;version='[12.1.0,12.1.1)',\
+	org.eclipse.jetty.io;version='[12.1.0,12.1.1)',\
+	org.eclipse.jetty.server;version='[12.1.0,12.1.1)',\
+	org.eclipse.jetty.util;version='[12.1.0,12.1.1)',\
+	org.jupnp;version='[3.0.5,3.0.6)',\
+	org.jupnp.osgi.tests.jetty12;version='[3.0.5,3.0.6)',\
+	org.jupnp.transport.jetty12;version='[3.0.5,3.0.6)';startlevel=2,\
+	org.objectweb.asm;version='[9.6.0,9.6.1)';startlevel=1,\
+	org.objectweb.asm.commons;version='[9.6.0,9.6.1)';startlevel=1,\
+	org.objectweb.asm.tree;version='[9.6.0,9.6.1)';startlevel=1,\
+	org.objectweb.asm.tree.analysis;version='[9.6.0,9.6.1)';startlevel=1,\
+	org.objectweb.asm.util;version='[9.6.0,9.6.1)';startlevel=1,\
+	org.opentest4j;version='[1.3.0,1.3.1)',\
+	org.ops4j.pax.logging.pax-logging-api;version='[2.2.7,2.2.8)',\
+	org.ops4j.pax.web.pax-web-api;version='[8.0.25,8.0.26)',\
+	org.osgi.service.component;version='[1.5.0,1.5.1)',\
+	org.osgi.util.function;version='[1.0.0,1.0.1)',\
+	org.osgi.util.promise;version='[1.0.0,1.0.1)',\
+	org.eclipse.jetty.compression.common;version='[12.1.0,12.1.1)',\
+	org.eclipse.jetty.compression.gzip;version='[12.1.0,12.1.1)'

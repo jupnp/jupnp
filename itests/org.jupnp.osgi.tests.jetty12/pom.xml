@@ -6,16 +6,17 @@
   <parent>
     <groupId>org.jupnp.pom</groupId>
     <artifactId>itests</artifactId>
-    <version>3.0.6-SNAPSHOT</version>
+    <version>3.0.5-SNAPSHOT</version>
   </parent>
 
   <groupId>org.jupnp.itests</groupId>
-  <artifactId>org.jupnp.osgi.tests</artifactId>
+  <artifactId>org.jupnp.osgi.tests.jetty12</artifactId>
 
-  <name>jUPnP Integration Tests OSGi</name>
+  <name>jUPnP Integration Tests OSGi Jetty 12</name>
 
   <properties>
     <basedirRoot>../..</basedirRoot>
+    <maven.compiler.release>17</maven.compiler.release>
   </properties>
 
   <dependencies>
@@ -26,18 +27,21 @@
     </dependency>
     <dependency>
       <groupId>org.jupnp</groupId>
-      <artifactId>org.jupnp.transport.jetty9</artifactId>
+      <artifactId>org.jupnp.transport.jetty12</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!--
+      Pin explicitly: the itests parent pom pulls in org.jupnp.bom.runtime (needed by the other itest
+      modules for pax-web-jetty), which transitively drags in jetty-util at the old Jetty 9.4.x version.
+      Since it shares the same groupId:artifactId as the Jetty 12.x jetty-util that
+      org.jupnp.transport.jetty12 actually needs, Maven's version mediation would otherwise silently drop
+      the 12.x one, breaking OSGi resolution (jetty-io/jetty-http import org.eclipse.jetty.util at
+      [12.1.0,13)). A direct dependency declaration always wins over a transitive one.
+    -->
     <dependency>
-      <groupId>org.jupnp</groupId>
-      <artifactId>org.jupnp.osgi</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.jupnp.itests</groupId>
-      <artifactId>org.jupnp.device.simple</artifactId>
-      <version>${project.version}</version>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-util</artifactId>
+      <version>${jetty12.version}</version>
     </dependency>
     <!--
       OSGi Service Loader Mediator: only needed here to prove in this itest that
