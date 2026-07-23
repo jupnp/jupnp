@@ -32,7 +32,6 @@ import org.jupnp.model.meta.RemoteDeviceIdentity;
 import org.jupnp.model.meta.RemoteService;
 import org.jupnp.model.types.ServiceType;
 import org.jupnp.transport.TransportConfiguration;
-import org.jupnp.transport.TransportConfigurationProvider;
 import org.jupnp.transport.impl.DatagramIOConfigurationImpl;
 import org.jupnp.transport.impl.DatagramIOImpl;
 import org.jupnp.transport.impl.DatagramProcessorImpl;
@@ -128,7 +127,7 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
     protected BundleContext context;
 
     @SuppressWarnings("rawtypes")
-    protected volatile TransportConfiguration transportConfiguration;
+    protected TransportConfiguration transportConfiguration;
 
     protected Integer timeoutSeconds = 10;
     protected Integer retryIterations = 5;
@@ -166,23 +165,30 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
     }
 
     /**
-     * The transport implementation is discovered lazily so that a configuration can be instantiated without a
-     * transport implementation on the class path.
-     *
-     * @return the discovered {@link TransportConfiguration}
+     * @return the {@link TransportConfiguration} injected via
+     *         {@link #setTransportConfiguration(TransportConfiguration)}
      */
     @SuppressWarnings("rawtypes")
     protected TransportConfiguration getTransportConfiguration() {
-        TransportConfiguration result = transportConfiguration;
-        if (result == null) {
-            synchronized (this) {
-                result = transportConfiguration;
-                if (result == null) {
-                    transportConfiguration = result = TransportConfigurationProvider.getDefaultTransportConfiguration();
-                }
-            }
-        }
-        return result;
+        return transportConfiguration;
+    }
+
+    /**
+     * A mandatory reference to the transport bundle's {@link TransportConfiguration} service (e.g. provided by
+     * <code>org.jupnp.transport.jetty9</code> or <code>org.jupnp.transport.jetty12</code>). Unlike the
+     * ServiceLoader-based discovery used by {@link DefaultUpnpServiceConfiguration} (which can race a
+     * transport bundle that hasn't finished starting yet), Declarative Services defers activation of this
+     * component until a matching service is actually registered, so the outcome does not depend on bundle
+     * start order.
+     */
+    @Reference
+    @SuppressWarnings("rawtypes")
+    public void setTransportConfiguration(TransportConfiguration transportConfiguration) {
+        this.transportConfiguration = transportConfiguration;
+    }
+
+    public void unsetTransportConfiguration(TransportConfiguration transportConfiguration) {
+        this.transportConfiguration = null;
     }
 
     @Activate

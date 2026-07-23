@@ -22,12 +22,19 @@ import org.jupnp.transport.impl.StreamClientConfigurationImpl;
 import org.jupnp.transport.spi.StreamClient;
 import org.jupnp.transport.spi.StreamClientConfiguration;
 import org.jupnp.transport.spi.StreamServer;
+import org.osgi.service.component.annotations.Component;
 
 /**
  * Implementation of {@link TransportConfiguration} for Jetty 12.x HTTP components.
+ * <p>
+ * Also registered as a {@link TransportConfiguration} OSGi service via Declarative Services, so that
+ * {@link org.jupnp.OSGiUpnpServiceConfiguration}'s mandatory reference to it defers activation until this
+ * bundle has actually started, rather than racing ServiceLoader-based discovery against bundle start order.
+ * </p>
  *
  * @author Holger Friedrich - initial contribution
  */
+@Component(service = TransportConfiguration.class)
 public class Jetty12TransportConfiguration implements TransportConfiguration {
 
     public static final TransportConfiguration INSTANCE = new Jetty12TransportConfiguration();

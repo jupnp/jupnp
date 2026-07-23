@@ -50,6 +50,16 @@
 
   <profiles>
     <profile>
+      <id>java17</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <modules>
+        <module>org.jupnp.osgi.tests.jetty12</module>
+      </modules>
+    </profile>
+
+    <profile>
       <id>create-bundle</id>
       <activation>
         <file>

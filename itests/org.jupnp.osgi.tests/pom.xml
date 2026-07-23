@@ -39,6 +39,18 @@
       <artifactId>org.jupnp.device.simple</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!--
+      OSGi Service Loader Mediator: only needed here to prove in this itest that
+      TransportConfigurationProvider's ServiceLoader-based discovery works across bundles when a
+      mediator is present, as it is in the project's primary deployment target (openHAB on Apache
+      Karaf, which bundles Aries SPI Fly). Not part of the general runtime BOM, jUPnP itself does not
+      require it: without a mediator, TransportConfigurationProvider falls back to reflection.
+    -->
+    <dependency>
+      <groupId>org.apache.aries.spifly</groupId>
+      <artifactId>org.apache.aries.spifly.dynamic.bundle</artifactId>
+      <version>1.3.7</version>
+    </dependency>
   </dependencies>
 
 </project>
