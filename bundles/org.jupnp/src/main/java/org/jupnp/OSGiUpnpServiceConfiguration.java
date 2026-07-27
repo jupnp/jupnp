@@ -197,8 +197,18 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
      * (e.g. jetty9 and jetty12) were both installed, picking one non-deterministically with no error. Collecting
      * all bound services here lets {@link #getTransportConfiguration()} fail loudly on ambiguity instead, the
      * same way {@link org.jupnp.transport.TransportConfigurationProvider} does for the ServiceLoader path.
+     * <p>
+     * The target filter excludes services registered by an OSGi ServiceLoader Mediator (e.g. Apache Aries SPI
+     * Fly), which tags them with the {@code serviceloader.mediator} service property (see
+     * {@code org.apache.aries.spifly.SpiFlyConstants.SERVICELOADER_MEDIATOR_PROPERTY}; there is no
+     * "osgi." prefix, despite the rest of the ServiceLoader Mediator capability namespace using one). Transport
+     * bundles also declare a ServiceLoader capability so a mediator can bridge them to non-DS consumers such as
+     * {@link org.jupnp.transport.TransportConfigurationProvider} (see e.g. org.jupnp.transport.jetty12's
+     * bnd.bnd); without this filter, a mediator present in the same runtime would register a second, separate
+     * service instance for the very same transport bundle, and this reference would see it as a spurious
+     * ambiguity between "two" transport implementations that are actually just one, registered twice.
      */
-    @Reference(cardinality = ReferenceCardinality.AT_LEAST_ONE)
+    @Reference(cardinality = ReferenceCardinality.AT_LEAST_ONE, target = "(!(serviceloader.mediator=*))")
     @SuppressWarnings("rawtypes")
     public void addTransportConfiguration(TransportConfiguration transportConfiguration) {
         transportConfigurations.add(transportConfiguration);
@@ -239,13 +249,23 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
      * javax HttpService no longer exists), UPnP requests are served by the standalone stream server of the
      * discovered transport instead of the shared HTTP server. The greedy policy option reactivates this component
      * when an HttpService appears after activation, so the outcome does not depend on bundle start order.
+     * <p>
+     * The bind/unbind methods deliberately take {@code Object}, not {@link HttpService}, with the service type
+     * given explicitly via {@code service = HttpService.class} instead: Declarative Services runtimes (e.g.
+     * Apache Felix SCR) locate bind methods via {@code Class.getDeclaredMethods()}, which must resolve every
+     * declared method's parameter types to build {@code Method} objects -- including on runtimes that never
+     * introspect or invoke this particular method, e.g. because the reference is never satisfied. On a genuinely
+     * HttpService-less runtime (org.osgi.service.http not just unbound, but entirely unavailable), a method
+     * literally typed {@code HttpService} would throw {@link NoClassDefFoundError} out of that reflective call,
+     * breaking introspection of the whole component -- not just this optional reference.
      */
-    @Reference(cardinality = ReferenceCardinality.OPTIONAL, policyOption = ReferencePolicyOption.GREEDY)
-    public void setHttpService(HttpService httpService) {
-        this.httpService = httpService;
+    @Reference(service = HttpService.class, cardinality = ReferenceCardinality.OPTIONAL,
+            policyOption = ReferencePolicyOption.GREEDY)
+    public void setHttpService(Object httpService) {
+        this.httpService = (HttpService) httpService;
     }
 
-    public void unsetHttpService(HttpService httpService) {
+    public void unsetHttpService(Object httpService) {
         this.httpService = null;
     }
 
