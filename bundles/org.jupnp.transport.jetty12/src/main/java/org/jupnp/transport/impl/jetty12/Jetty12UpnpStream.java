@@ -26,7 +26,9 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 
+import org.eclipse.jetty.http.DateGenerator;
 import org.eclipse.jetty.http.HttpField;
+import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Response;
 import org.eclipse.jetty.util.Callback;
@@ -155,6 +157,8 @@ public class Jetty12UpnpStream extends UpnpStream {
                 response.getHeaders().add(entry.getKey(), value);
             }
         }
+        // The Date header is recommended in UDA
+        response.getHeaders().put(HttpHeader.DATE, DateGenerator.formatDate(System.currentTimeMillis()));
 
         // Body
         byte[] responseBodyBytes = responseMessage.hasBody() ? responseMessage.getBodyBytes() : null;
