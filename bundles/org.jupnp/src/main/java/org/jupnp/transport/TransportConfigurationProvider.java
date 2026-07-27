@@ -15,7 +15,9 @@
  */
 package org.jupnp.transport;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
@@ -93,7 +95,7 @@ public final class TransportConfigurationProvider {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private static <SCC extends StreamClientConfiguration, SSC extends StreamServerConfiguration> TransportConfiguration<SCC, SSC> discoverViaServiceLoader() {
         TransportConfiguration<SCC, SSC> transportConfiguration = null;
-        int found = 0;
+        List<String> foundClassNames = new ArrayList<>();
         try {
             // Deliberately the single-argument ServiceLoader.load(Class) overload, not
             // load(Class, ClassLoader): an OSGi Service Loader Mediator (e.g. Apache Aries SPI Fly)
@@ -105,7 +107,7 @@ public final class TransportConfigurationProvider {
             while (iterator.hasNext()) {
                 try {
                     TransportConfiguration<SCC, SSC> candidate = iterator.next();
-                    found++;
+                    foundClassNames.add(candidate.getClass().getName());
                     if (transportConfiguration == null) {
                         transportConfiguration = candidate;
                     }
@@ -116,16 +118,17 @@ public final class TransportConfigurationProvider {
         } catch (ServiceConfigurationError | LinkageError e) {
             LOGGER.debug("ServiceLoader discovery of transport implementations failed", e);
         }
+        // ServiceLoader iteration order is unspecified, so silently picking the first of several
+        // candidates would make transport selection non-deterministic across runs. Fail loudly instead,
+        // the same way the no-provider-found case does, rather than risk a random pick.
+        if (foundClassNames.size() > 1) {
+            throw new InitializationException("Multiple transport implementations found via ServiceLoader: "
+                    + foundClassNames + ". Make sure only one jUPnP transport bundle (e.g. "
+                    + "org.jupnp.transport.jetty9 or org.jupnp.transport.jetty12) is on the class path.");
+        }
         if (transportConfiguration != null) {
-            if (found > 1) {
-                LOGGER.warn(
-                        "Multiple transport implementations found via ServiceLoader, using '{}'. "
-                                + "Make sure only one jUPnP transport implementation is available.",
-                        transportConfiguration.getClass().getName());
-            } else {
-                LOGGER.debug("Using transport implementation '{}' found via ServiceLoader",
-                        transportConfiguration.getClass().getName());
-            }
+            LOGGER.debug("Using transport implementation '{}' found via ServiceLoader",
+                    transportConfiguration.getClass().getName());
         }
         return transportConfiguration;
     }
