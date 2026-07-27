@@ -17,13 +17,6 @@ package org.jupnp.transport.impl.jetty12;
 
 import java.net.InetAddress;
 
-import org.eclipse.jetty.server.Handler;
-import org.eclipse.jetty.server.Request;
-import org.eclipse.jetty.server.Response;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.util.Callback;
-import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.jupnp.transport.Router;
 import org.jupnp.transport.spi.InitializationException;
 import org.jupnp.transport.spi.StreamServer;
@@ -33,9 +26,12 @@ import org.slf4j.LoggerFactory;
 /**
  * {@link StreamServer} implementation based on the Jetty 12.x core API (no servlets required).
  * <p>
- * Every instance starts its own Jetty server, listening on a single address. Incoming requests are dispatched to
- * the {@link Router} as {@link Jetty12UpnpStream}s and processed asynchronously on the stream server executor of
- * the UPnP service configuration.
+ * Every bind address gets its own instance of this class, but they all share one underlying Jetty
+ * {@link org.eclipse.jetty.server.Server}/thread pool via {@link Jetty12ServerContainer}, adding one
+ * {@link org.eclipse.jetty.server.ServerConnector} per address instead of running a separate Jetty server per
+ * address -- mirroring how the Jetty 9 transport's <code>JettyServletContainer</code> shares a single server
+ * across bind addresses. Incoming requests are dispatched to the {@link Router} as {@link Jetty12UpnpStream}s
+ * and processed asynchronously on the stream server executor of the UPnP service configuration.
  * </p>
  *
  * @author Holger Friedrich - initial contribution
@@ -45,8 +41,6 @@ public class Jetty12StreamServerImpl implements StreamServer<Jetty12StreamServer
     private final Logger logger = LoggerFactory.getLogger(Jetty12StreamServerImpl.class);
 
     protected final Jetty12StreamServerConfigurationImpl configuration;
-    protected Server server;
-    protected ServerConnector connector;
     protected int localPort;
 
     public Jetty12StreamServerImpl(Jetty12StreamServerConfigurationImpl configuration) {
@@ -61,31 +55,10 @@ public class Jetty12StreamServerImpl implements StreamServer<Jetty12StreamServer
     @Override
     public synchronized void init(InetAddress bindAddress, Router router) throws InitializationException {
         try {
-            QueuedThreadPool threadPool = new QueuedThreadPool();
-            threadPool.setName("jupnp-jetty-server");
-            threadPool.setDaemon(true);
-
-            server = new Server(threadPool);
-
-            connector = new ServerConnector(server);
-            connector.setHost(bindAddress.getHostAddress());
-            connector.setPort(getConfiguration().getListenPort());
-
             logger.debug("Adding connector: {}:{}", bindAddress, getConfiguration().getListenPort());
-
-            // Open immediately so we can get the assigned local port
-            connector.open();
-            localPort = connector.getLocalPort();
-
-            server.addConnector(connector);
-            server.setHandler(new UpnpHandler(router));
+            localPort = Jetty12ServerContainer.INSTANCE.addConnector(bindAddress.getHostAddress(),
+                    getConfiguration().getListenPort(), router);
         } catch (Exception e) {
-            // connector.open() above already bound the server socket; if anything after that point fails,
-            // close it explicitly so the port isn't leaked (it would otherwise stay bound until this
-            // instance is garbage collected, since server was never started and can't close it for us).
-            if (connector != null) {
-                connector.close();
-            }
             throw new InitializationException("Could not initialize " + getClass().getSimpleName(), e);
         }
     }
@@ -97,44 +70,11 @@ public class Jetty12StreamServerImpl implements StreamServer<Jetty12StreamServer
 
     @Override
     public synchronized void stop() {
-        if (server != null && !server.isStopped() && !server.isStopping()) {
-            logger.info("Stopping Jetty server...");
-            try {
-                server.stop();
-            } catch (Exception e) {
-                logger.error("Couldn't stop Jetty server", e);
-            }
-        }
+        Jetty12ServerContainer.INSTANCE.stopIfRunning();
     }
 
     @Override
     public void run() {
-        if (!server.isStarted() && !server.isStarting()) {
-            logger.info("Starting Jetty server...");
-            try {
-                server.start();
-            } catch (Exception e) {
-                logger.error("Couldn't start Jetty server", e);
-                throw new RuntimeException("Couldn't start Jetty server", e);
-            }
-        }
-    }
-
-    protected static class UpnpHandler extends Handler.Abstract {
-
-        private final Router router;
-
-        public UpnpHandler(Router router) {
-            super();
-            this.router = router;
-        }
-
-        @Override
-        public boolean handle(Request request, Response response, Callback callback) throws Exception {
-            // The stream is executed asynchronously on the router's stream server executor,
-            // the callback is completed when the response has been written
-            router.received(new Jetty12UpnpStream(router.getProtocolFactory(), request, response, callback));
-            return true;
-        }
+        Jetty12ServerContainer.INSTANCE.startIfNotRunning();
     }
 }
