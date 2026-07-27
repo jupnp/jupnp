@@ -80,7 +80,8 @@ public final class TransportConfigurationProvider {
                     Thread.sleep(SERVICE_LOADER_RETRY_DELAY_MILLIS);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    break;
+                    throw new InitializationException(
+                            "Interrupted while waiting to retry ServiceLoader transport discovery.", e);
                 }
             }
         }
