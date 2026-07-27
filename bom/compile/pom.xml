@@ -20,11 +20,6 @@
 
   <dependencies>
     <dependency>
-      <groupId>javax.servlet</groupId>
-      <artifactId>javax.servlet-api</artifactId>
-      <version>${servlet.api.version}</version>
-    </dependency>
-    <dependency>
       <groupId>org.osgi</groupId>
       <artifactId>osgi.core</artifactId>
       <version>${osgi.version}</version>
