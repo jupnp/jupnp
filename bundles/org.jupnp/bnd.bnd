@@ -1,6 +1,21 @@
 -include: ../../bnd.bnd
 
+# javax.servlet(.http) and org.osgi.service.http are only referenced by the OSGi HttpService-sharing
+# fallback in OSGiUpnpServiceConfiguration (ServletStreamServerImpl, HttpServiceServletContainerAdapter,
+# the HttpService field/reference itself, etc.), which is optional and guarded by a null check on an
+# optional HttpService reference. Marking all three optional here lets this bundle resolve and run on OSGi
+# runtimes with no javax.servlet-api (and hence no HttpService implementation) present at all -- e.g.
+# openHAB on Pax Web 11+/Jetty 12, which drops the classic HttpService API entirely in favor of the
+# Jakarta Servlet Whiteboard. On such runtimes the HttpService reference is simply never satisfied, and
+# createStreamServer() falls through to the transport's own native StreamServer (e.g. jetty12's, which has
+# no servlet dependency at all) instead. org.osgi.service.http must be optional too, not just the servlet
+# packages: otherwise a static resolver trying to satisfy even optional references (e.g. bnd's
+# -resolve.effective: active) can still fail by chasing a HttpService provider (e.g. an old pax-web-api)
+# that itself pulls in javax.servlet.
 Import-Package: com.sun.net.httpserver;resolution:=optional,\
+ javax.servlet;resolution:=optional,\
+ javax.servlet.http;resolution:=optional,\
+ org.osgi.service.http;resolution:=optional,\
  *
 
 # The transport implementation is discovered at runtime via java.util.ServiceLoader / META-INF/services,
