@@ -37,15 +37,17 @@ class PortMappingListenerTest {
 
     @Test
     void discoversVersionTwoInternetGatewayDevice() throws Exception {
-        final RemoteService connectionService = new RemoteService(new UDAServiceType("WANIPConnection", 1),
+        final RemoteService connectionService = new RemoteService(new UDAServiceType("WANIPConnection", 2),
                 new UDAServiceId("WANIPConnection"), URI.create("service.xml"), URI.create("control"),
                 URI.create("events"));
         final RemoteDevice connectionDevice = new RemoteDevice(identity("connection"),
-                new UDADeviceType("WANConnectionDevice", 1), new DeviceDetails("WAN connection"),
+                new UDADeviceType("WANConnectionDevice", 2), new DeviceDetails("WAN connection"),
                 new RemoteService[] { connectionService });
+        final RemoteDevice wanDevice = new RemoteDevice(identity("wan"), new UDADeviceType("WANDevice", 2),
+                new DeviceDetails("WAN device"), new RemoteService[0], new RemoteDevice[] { connectionDevice });
         final RemoteDevice gateway = new RemoteDevice(identity("gateway"),
                 new UDADeviceType("InternetGatewayDevice", 2), new DeviceDetails("Internet gateway"),
-                new RemoteService[0], new RemoteDevice[] { connectionDevice });
+                new RemoteService[0], new RemoteDevice[] { wanDevice });
 
         final Service<?, ?> discovered = new PortMappingListener(new PortMapping()).discoverConnectionService(gateway);
 

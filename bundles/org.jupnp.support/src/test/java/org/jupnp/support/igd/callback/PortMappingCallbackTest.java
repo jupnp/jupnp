@@ -16,6 +16,7 @@
 package org.jupnp.support.igd.callback;
 
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.net.URI;
 
@@ -70,6 +71,25 @@ class PortMappingCallbackTest {
         final ActionInvocation<?> invocation = callback.getActionInvocation();
 
         assertInstanceOf(UnsignedIntegerFourBytes.class, invocation.getInput("NewExternalPort").getValue());
+    }
+
+    @Test
+    void addAllowsUnsetPorts() throws Exception {
+        final PortMappingAdd callback = new PortMappingAdd(portMappingService(Datatype.Builtin.UI4.getDatatype(), true),
+                new PortMapping()) {
+            @Override
+            public void success(final ActionInvocation invocation) {
+            }
+
+            @Override
+            public void failure(final ActionInvocation invocation, final UpnpResponse operation,
+                    final String defaultMsg) {
+            }
+        };
+        final ActionInvocation<?> invocation = callback.getActionInvocation();
+
+        assertNull(invocation.getInput("NewExternalPort").getValue());
+        assertNull(invocation.getInput("NewInternalPort").getValue());
     }
 
     private PortMapping mapping() {
