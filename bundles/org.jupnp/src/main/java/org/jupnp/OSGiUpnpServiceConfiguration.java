@@ -15,7 +15,9 @@
  */
 package org.jupnp;
 
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,6 +49,7 @@ import org.jupnp.transport.impl.osgi.HttpServiceServletContainerAdapter;
 import org.jupnp.transport.spi.DatagramIO;
 import org.jupnp.transport.spi.DatagramProcessor;
 import org.jupnp.transport.spi.GENAEventProcessor;
+import org.jupnp.transport.spi.InitializationException;
 import org.jupnp.transport.spi.MulticastReceiver;
 import org.jupnp.transport.spi.NetworkAddressFactory;
 import org.jupnp.transport.spi.SOAPActionProcessor;
@@ -127,7 +130,7 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
     protected BundleContext context;
 
     @SuppressWarnings("rawtypes")
-    protected TransportConfiguration transportConfiguration;
+    protected final List<TransportConfiguration> transportConfigurations = new CopyOnWriteArrayList<>();
 
     protected Integer timeoutSeconds = 10;
     protected Integer retryIterations = 5;
@@ -166,11 +169,19 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
 
     /**
      * @return the {@link TransportConfiguration} injected via
-     *         {@link #setTransportConfiguration(TransportConfiguration)}
+     *         {@link #addTransportConfiguration(TransportConfiguration)}
+     * @throws InitializationException if more than one transport bundle's {@link TransportConfiguration} service
+     *             is currently bound
      */
     @SuppressWarnings("rawtypes")
     protected TransportConfiguration getTransportConfiguration() {
-        return transportConfiguration;
+        List<TransportConfiguration> current = transportConfigurations;
+        if (current.size() > 1) {
+            throw new InitializationException("Multiple transport implementations found: " + current + ". "
+                    + "Make sure only one jUPnP transport bundle (e.g. org.jupnp.transport.jetty9 or "
+                    + "org.jupnp.transport.jetty12) is installed.");
+        }
+        return current.isEmpty() ? null : current.get(0);
     }
 
     /**
@@ -180,15 +191,21 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
      * transport bundle that hasn't finished starting yet), Declarative Services defers activation of this
      * component until a matching service is actually registered, so the outcome does not depend on bundle
      * start order.
+     * <p>
+     * Cardinality is deliberately {@code AT_LEAST_ONE} rather than the default {@code MANDATORY} (1..1): with a
+     * plain 1..1 reference, DS would silently bind whichever candidate ranks highest if two transport bundles
+     * (e.g. jetty9 and jetty12) were both installed, picking one non-deterministically with no error. Collecting
+     * all bound services here lets {@link #getTransportConfiguration()} fail loudly on ambiguity instead, the
+     * same way {@link org.jupnp.transport.TransportConfigurationProvider} does for the ServiceLoader path.
      */
-    @Reference
+    @Reference(cardinality = ReferenceCardinality.AT_LEAST_ONE)
     @SuppressWarnings("rawtypes")
-    public void setTransportConfiguration(TransportConfiguration transportConfiguration) {
-        this.transportConfiguration = transportConfiguration;
+    public void addTransportConfiguration(TransportConfiguration transportConfiguration) {
+        transportConfigurations.add(transportConfiguration);
     }
 
-    public void unsetTransportConfiguration(TransportConfiguration transportConfiguration) {
-        this.transportConfiguration = null;
+    public void removeTransportConfiguration(TransportConfiguration transportConfiguration) {
+        transportConfigurations.remove(transportConfiguration);
     }
 
     @Activate
