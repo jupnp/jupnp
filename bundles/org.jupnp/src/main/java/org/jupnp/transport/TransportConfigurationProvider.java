@@ -58,10 +58,12 @@ public final class TransportConfigurationProvider {
     // brief retry only covers millisecond-scale jitter, not the general case: the gap can span however
     // long the framework takes to work through the other bundles in its startup sequence first, which a
     // short bounded retry cannot reliably close without imposing that same delay on every deployment that
-    // has no mediator at all. Consumers that need deterministic behavior in OSGi should prefer
-    // org.jupnp.OSGiUpnpServiceConfiguration, which consumes TransportConfiguration via a mandatory
-    // Declarative Services reference instead of this class, so activation is deferred until the transport
-    // bundle has actually registered.
+    // has no mediator at all. The same kind of race can also produce a transient "multiple providers found"
+    // failure instead of "none found", e.g. when an old and a new version of a transport bundle briefly
+    // overlap during a bundle update -- getDefaultTransportConfiguration() retries that case too. Consumers
+    // that need deterministic behavior in OSGi should prefer org.jupnp.OSGiUpnpServiceConfiguration, which
+    // consumes TransportConfiguration via Declarative Services references instead of this class, so
+    // activation is deferred until the transport bundle has actually registered.
     private static final int SERVICE_LOADER_RETRY_ATTEMPTS = 5;
     private static final long SERVICE_LOADER_RETRY_DELAY_MILLIS = 50;
 
@@ -70,8 +72,19 @@ public final class TransportConfigurationProvider {
     }
 
     public static <SCC extends StreamClientConfiguration, SSC extends StreamServerConfiguration> TransportConfiguration<SCC, SSC> getDefaultTransportConfiguration() {
+        InitializationException lastAmbiguityFailure = null;
         for (int attempt = 1; attempt <= SERVICE_LOADER_RETRY_ATTEMPTS; attempt++) {
-            TransportConfiguration<SCC, SSC> transportConfiguration = discoverViaServiceLoader();
+            lastAmbiguityFailure = null;
+            TransportConfiguration<SCC, SSC> transportConfiguration = null;
+            try {
+                transportConfiguration = discoverViaServiceLoader();
+            } catch (InitializationException e) {
+                // discoverViaServiceLoader() only throws for the "multiple providers" case. Retry it the
+                // same as the "no provider found" case below: the same bundle-registration race this loop
+                // exists for can just as easily produce a transient double-registration, e.g. an old and a
+                // new version of a transport bundle briefly overlapping during a bundle update.
+                lastAmbiguityFailure = e;
+            }
             if (transportConfiguration != null) {
                 return transportConfiguration;
             }
@@ -84,6 +97,10 @@ public final class TransportConfigurationProvider {
                             "Interrupted while waiting to retry ServiceLoader transport discovery.", e);
                 }
             }
+        }
+
+        if (lastAmbiguityFailure != null) {
+            throw lastAmbiguityFailure;
         }
 
         throw new InitializationException("No usable transport implementation found via ServiceLoader. "

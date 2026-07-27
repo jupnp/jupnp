@@ -80,6 +80,12 @@ public class Jetty12StreamServerImpl implements StreamServer<Jetty12StreamServer
             server.addConnector(connector);
             server.setHandler(new UpnpHandler(router));
         } catch (Exception e) {
+            // connector.open() above already bound the server socket; if anything after that point fails,
+            // close it explicitly so the port isn't leaked (it would otherwise stay bound until this
+            // instance is garbage collected, since server was never started and can't close it for us).
+            if (connector != null) {
+                connector.close();
+            }
             throw new InitializationException("Could not initialize " + getClass().getSimpleName(), e);
         }
     }

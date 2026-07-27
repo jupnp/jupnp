@@ -32,22 +32,26 @@ import org.osgi.service.component.annotations.Reference;
 @Component(service = UpnpServiceConfiguration.class)
 public class JettyUpnpServiceConfiguration extends DefaultUpnpServiceConfiguration {
 
+    // Named distinctly (not transportConfiguration) so it doesn't shadow DefaultUpnpServiceConfiguration's
+    // private field of the same name, which would be easy to trip over during future refactors. volatile
+    // since it's written by the DS bind/unbind callbacks and read from getTransportConfiguration() callers
+    // on other threads.
     @SuppressWarnings("rawtypes")
-    private TransportConfiguration transportConfiguration;
+    private volatile TransportConfiguration injectedTransportConfiguration;
 
     @Override
     @SuppressWarnings("rawtypes")
     protected TransportConfiguration getTransportConfiguration() {
-        return transportConfiguration;
+        return injectedTransportConfiguration;
     }
 
     @Reference
     @SuppressWarnings("rawtypes")
     public void setTransportConfiguration(TransportConfiguration transportConfiguration) {
-        this.transportConfiguration = transportConfiguration;
+        this.injectedTransportConfiguration = transportConfiguration;
     }
 
     public void unsetTransportConfiguration(TransportConfiguration transportConfiguration) {
-        this.transportConfiguration = null;
+        this.injectedTransportConfiguration = null;
     }
 }
