@@ -17,6 +17,7 @@
   <properties>
     <basedirRoot>../..</basedirRoot>
     <maven.compiler.release>17</maven.compiler.release>
+    <pax.logging.jetty12.version>2.2.7</pax.logging.jetty12.version>
   </properties>
 
   <dependencies>
@@ -29,6 +30,15 @@
       <groupId>org.jupnp</groupId>
       <artifactId>org.jupnp.transport.jetty12</artifactId>
       <version>${project.version}</version>
+    </dependency>
+    <!--
+      Keep this as a direct dependency so bnd resolver output for this Java 17 module stays stable
+      when runbundles are regenerated with -DwithResolver.
+    -->
+    <dependency>
+      <groupId>org.ops4j.pax.logging</groupId>
+      <artifactId>pax-logging-api</artifactId>
+      <version>${pax.logging.jetty12.version}</version>
     </dependency>
     <!--
       Pin explicitly: the itests parent pom pulls in org.jupnp.bom.runtime (needed by the other itest
