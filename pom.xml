@@ -63,7 +63,7 @@
     <args4j.version>2.0.12</args4j.version>
     <bnd.version>6.4.0</bnd.version>
     <jetty.version>9.4.53.v20231009</jetty.version>
-    <jetty12.version>12.1.0</jetty12.version>
+    <jetty12.version>12.1.10</jetty12.version>
     <junit.jupiter.version>5.10.1</junit.jupiter.version>
     <junit.platform.version>1.10.1</junit.platform.version>
     <logback.version>1.5.35</logback.version>
