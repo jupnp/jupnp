@@ -41,11 +41,16 @@ Export-Package:
 # path (still used by non-DS consumers such as plain DefaultUpnpServiceConfiguration embedding), which has
 # no such guarantee and, deliberately, no reflective fallback either: a lost race there throws rather than
 # silently degrading.
+#
+# org.apache.felix.configadmin is required by RealConfigurationActivationTest, which activates the real
+# org.jupnp.OSGiUpnpServiceConfiguration component (configurationPolicy = REQUIRE) instead of only a
+# synthetic stand-in, with no javax.servlet/HttpService implementation present on this run's class path.
 -runrequires: \
 	bnd.identity;id='org.jupnp.osgi.tests.jetty12',\
 	bnd.identity;id='org.apache.aries.spifly.dynamic.bundle',\
 	bnd.identity;id='org.jupnp.transport.jetty12',\
-	bnd.identity;id='org.eclipse.jetty.compression.gzip'
+	bnd.identity;id='org.eclipse.jetty.compression.gzip',\
+	bnd.identity;id='org.apache.felix.configadmin'
 
 #
 # done
@@ -79,4 +84,5 @@ Export-Package:
 	org.eclipse.jetty.http;version='[12.1.10,12.1.11)',\
 	org.eclipse.jetty.io;version='[12.1.10,12.1.11)',\
 	org.eclipse.jetty.server;version='[12.1.10,12.1.11)',\
-	org.eclipse.jetty.util;version='[12.1.10,12.1.11)'
+	org.eclipse.jetty.util;version='[12.1.10,12.1.11)',\
+	org.apache.felix.configadmin;version='[1.9.26,1.9.27)'
