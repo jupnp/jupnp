@@ -56,9 +56,10 @@
     <!--
       OSGi Service Loader Mediator: only needed here to prove in this itest that
       TransportConfigurationProvider's ServiceLoader-based discovery works across bundles when a
-      mediator is present, as it is in the project's primary deployment target (openHAB on Apache
-      Karaf, which bundles Aries SPI Fly). Not part of the general runtime BOM, jUPnP itself does not
-      require it: without a mediator, TransportConfigurationProvider falls back to reflection.
+      mediator is present, as it is on Apache Karaf, which bundles Aries SPI Fly. Not part of the
+      general runtime BOM, jUPnP itself does not require it: without a mediator, discovery simply
+      does not find a provider, and TransportConfigurationProvider throws a configuration error --
+      there is no reflective fallback.
     -->
     <dependency>
       <groupId>org.apache.aries.spifly</groupId>
