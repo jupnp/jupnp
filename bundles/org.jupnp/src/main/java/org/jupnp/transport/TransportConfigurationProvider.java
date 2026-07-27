@@ -32,7 +32,9 @@ import org.slf4j.LoggerFactory;
  * bundles (e.g. <code>org.jupnp.transport.jetty9</code> or <code>org.jupnp.transport.jetty12</code>). Exactly
  * one transport bundle should be available at runtime, discovered via the {@link ServiceLoader} mechanism. In
  * OSGi, this relies on an OSGi Service Loader Mediator (e.g. Apache Aries SPI Fly) being installed to bridge
- * discovery across bundles; this bundle's manifest declares that requirement.
+ * discovery across bundles; this bundle's manifest declares optional ServiceLoader capabilities for that
+ * purpose. They are optional so the bundle still resolves without a mediator present -- discovery itself
+ * just won't work in that case, surfacing as the configuration error described below.
  * </p>
  * <p>
  * There is deliberately no reflective fallback: {@link org.jupnp.OSGiUpnpServiceConfiguration}, the shipped
@@ -81,7 +83,7 @@ public final class TransportConfigurationProvider {
             }
         }
 
-        throw new InitializationException("No transport implementation found via ServiceLoader. "
+        throw new InitializationException("No usable transport implementation found via ServiceLoader. "
                 + "Add a jUPnP transport bundle (e.g. org.jupnp:org.jupnp.transport.jetty9) as a dependency. "
                 + "In OSGi, also ensure an OSGi Service Loader Mediator (e.g. Apache Aries SPI Fly) is "
                 + "installed and started.");
