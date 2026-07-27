@@ -9,30 +9,17 @@
 #
 # done
 #
-# org.apache.aries.spifly.dynamic.bundle and its ASM dependencies are pinned to startlevel=1, and
-# org.jupnp.transport.jetty9 (the ServiceLoader/SPI provider bundle) to startlevel=2, so that the
-# OSGi Service Loader Mediator is active and has registered the transport provider before org.jupnp
-# (unmarked, defaulting to startlevel=3) performs its first ServiceLoader-based discovery.
-#
-# TransportConfigurationProvider does briefly retry ServiceLoader discovery before falling back to
-# reflection, but that alone is not enough here: measured empirically, the gap between org.jupnp's
-# first attempt and jetty9 actually registering with the mediator spans however long the framework
-# takes to work through the other bundles in its startup sequence first, not a few milliseconds of
-# jitter. Closing that gap with a bounded retry would require a multi-second budget, which is an
-# unacceptable startup cost for the (common) case of no mediator being present at all. So this
-# specific test -- which targets the ServiceLoader/SPI Fly path used by non-DS consumers such as this
-# module's own JettyUpnpServiceConfiguration -- still needs explicit ordering. Note that
-# org.jupnp.OSGiUpnpServiceConfiguration (the actual shipped OSGi component) no longer depends on this
-# race at all: it consumes TransportConfiguration via a mandatory Declarative Services @Reference,
-# which defers activation until the transport bundle has registered, deterministically.
-#
-# CAVEAT: the startlevel attribute below is silently dropped whenever the bnd resolver recomputes
-# -runbundles (e.g. `mvn ... -DwithResolver`). If this test starts failing with REFLECTIVE_FALLBACK
-# after a resolver run, re-add ;startlevel=1 to spifly/asm and ;startlevel=2 to jetty9 below.
+# No bundle start-level ordering is needed: JettyUpnpServiceConfiguration (this module's UpnpServiceConfiguration
+# component) consumes org.jupnp.transport.jetty9's TransportConfiguration service via a mandatory Declarative
+# Services @Reference, the same pattern org.jupnp.OSGiUpnpServiceConfiguration uses. Declarative Services itself
+# defers activation until that service is registered, so discovery is deterministic regardless of bundle start
+# order -- unlike the ServiceLoader-based org.jupnp.transport.TransportConfigurationProvider path (still used by
+# non-DS consumers such as plain DefaultUpnpServiceConfiguration embedding), which has no such guarantee and,
+# deliberately, no reflective fallback either: a lost race there throws rather than silently degrading.
 -runbundles: \
 	biz.aQute.tester.junit-platform;version='[7.4.0,7.4.1)',\
 	javax.servlet-api;version='[3.1.0,3.1.1)',\
-	org.apache.aries.spifly.dynamic.bundle;version='[1.3.7,1.3.8)';startlevel=1,\
+	org.apache.aries.spifly.dynamic.bundle;version='[1.3.7,1.3.8)',\
 	org.eclipse.equinox.event;version='[1.4.300,1.4.301)',\
 	org.opentest4j;version='[1.3.0,1.3.1)',\
 	org.osgi.service.component;version='[1.5.0,1.5.1)',\
@@ -65,10 +52,10 @@
 	org.jupnp.device.simple;version='[3.0.6,3.0.7)',\
 	org.jupnp.osgi;version='[3.0.6,3.0.7)',\
 	org.jupnp.osgi.tests;version='[3.0.6,3.0.7)',\
-	org.objectweb.asm;version='[9.6.0,9.6.1)';startlevel=1,\
-	org.objectweb.asm.commons;version='[9.6.0,9.6.1)';startlevel=1,\
-	org.objectweb.asm.tree;version='[9.6.0,9.6.1)';startlevel=1,\
-	org.objectweb.asm.tree.analysis;version='[9.6.0,9.6.1)';startlevel=1,\
-	org.objectweb.asm.util;version='[9.6.0,9.6.1)';startlevel=1,\
+	org.objectweb.asm;version='[9.6.0,9.6.1)',\
+	org.objectweb.asm.commons;version='[9.6.0,9.6.1)',\
+	org.objectweb.asm.tree;version='[9.6.0,9.6.1)',\
+	org.objectweb.asm.tree.analysis;version='[9.6.0,9.6.1)',\
+	org.objectweb.asm.util;version='[9.6.0,9.6.1)',\
 	org.eclipse.jetty.client;version='[9.4.53,9.4.54)',\
-	org.jupnp.transport.jetty9;version='[3.0.6,3.0.7)';startlevel=2
+	org.jupnp.transport.jetty9;version='[3.0.6,3.0.7)'
