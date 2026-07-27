@@ -523,7 +523,7 @@ public class MyUpnpServiceConfiguration extends DefaultUpnpServiceConfiguration 
     @Override
     public StreamClient createStreamClient() {
         return new org.jupnp.transport.impl.jetty.JettyStreamClientImpl(
-            new org.jupnp.transport.impl.StreamClientConfigurationImpl(
+            new org.jupnp.transport.impl.jetty.StreamClientConfigurationImpl(
                 getSyncProtocolExecutorService()
             )
         );

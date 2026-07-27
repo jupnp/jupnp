@@ -61,14 +61,16 @@ class TransportConfigurationProviderTest {
 
     @Test
     void multipleProvidersFailFast() throws IOException {
-        Thread.currentThread().setContextClassLoader(isolatedClassLoaderWithProviders(
-                FirstTestTransportConfiguration.class, SecondTestTransportConfiguration.class));
+        try (URLClassLoader isolatedClassLoader = isolatedClassLoaderWithProviders(
+                FirstTestTransportConfiguration.class, SecondTestTransportConfiguration.class)) {
+            Thread.currentThread().setContextClassLoader(isolatedClassLoader);
 
-        InitializationException exception = assertThrows(InitializationException.class,
-                TransportConfigurationProvider::getDefaultTransportConfiguration);
+            InitializationException exception = assertThrows(InitializationException.class,
+                    TransportConfigurationProvider::getDefaultTransportConfiguration);
 
-        assertTrue(exception.getMessage().contains(FirstTestTransportConfiguration.class.getName()));
-        assertTrue(exception.getMessage().contains(SecondTestTransportConfiguration.class.getName()));
+            assertTrue(exception.getMessage().contains(FirstTestTransportConfiguration.class.getName()));
+            assertTrue(exception.getMessage().contains(SecondTestTransportConfiguration.class.getName()));
+        }
     }
 
     @Test
@@ -84,7 +86,7 @@ class TransportConfigurationProviderTest {
         assertInstanceOf(InterruptedException.class, exception.getCause());
     }
 
-    private ClassLoader isolatedClassLoaderWithProviders(Class<?>... providers) throws IOException {
+    private URLClassLoader isolatedClassLoaderWithProviders(Class<?>... providers) throws IOException {
         Path servicesDir = tempDir.resolve("META-INF/services");
         Files.createDirectories(servicesDir);
         StringBuilder content = new StringBuilder();
