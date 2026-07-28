@@ -443,8 +443,10 @@ class QueueingThreadPoolExecutorTest {
         assertTrue(isQueueThreadActive(poolName));
         assertEquals(1, pool.getQueue().size());
 
-        // wait until all jobs have been processed
-        Thread.sleep(2 * 1000 + 1000);
+        // wait until all jobs have been processed -- shutdown() must not race the queue thread's handoff of the
+        // queued 5th task: QueueingRejectionHandler silently drops a task if shutdown() flips isShutdown() before
+        // the queue thread manages to dispatch it, which is what made this test flaky on slower CI hosts.
+        waitForAssert(() -> assertEquals(5, pool.getCompletedTaskCount()));
 
         pool.shutdown();
         // after shutdown all threads are down again
