@@ -13,7 +13,7 @@
  *
  * SPDX-License-Identifier: CDDL-1.0
  */
-package org.jupnp.transport.impl.async;
+package org.jupnp.transport.impl.servlet.async;
 
 import javax.servlet.ServletRequest;
 

@@ -25,6 +25,14 @@
       <version>${project.version}</version>
       <scope>compile</scope>
     </dependency>
+    <!-- For ServletStreamServerImpl/ServletContainerAdapter: createStreamServer() registers a Jetty-backed
+         adapter with the generic servlet transport infrastructure, which core no longer bundles. -->
+    <dependency>
+      <groupId>org.jupnp</groupId>
+      <artifactId>org.jupnp.transport.servlet</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
     <dependency>
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-client</artifactId>

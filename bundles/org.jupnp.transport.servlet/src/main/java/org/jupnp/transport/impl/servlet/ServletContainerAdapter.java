@@ -13,7 +13,7 @@
  *
  * SPDX-License-Identifier: CDDL-1.0
  */
-package org.jupnp.transport.spi;
+package org.jupnp.transport.impl.servlet;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;

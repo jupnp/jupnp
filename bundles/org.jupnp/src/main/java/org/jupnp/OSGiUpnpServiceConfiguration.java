@@ -42,10 +42,7 @@ import org.jupnp.transport.impl.MulticastReceiverConfigurationImpl;
 import org.jupnp.transport.impl.MulticastReceiverImpl;
 import org.jupnp.transport.impl.NetworkAddressFactoryImpl;
 import org.jupnp.transport.impl.SOAPActionProcessorImpl;
-import org.jupnp.transport.impl.ServletStreamServerConfigurationImpl;
-import org.jupnp.transport.impl.ServletStreamServerImpl;
 import org.jupnp.transport.impl.StreamClientConfigurationImpl;
-import org.jupnp.transport.impl.osgi.HttpServiceServletContainerAdapter;
 import org.jupnp.transport.spi.DatagramIO;
 import org.jupnp.transport.spi.DatagramProcessor;
 import org.jupnp.transport.spi.GENAEventProcessor;
@@ -53,10 +50,10 @@ import org.jupnp.transport.spi.InitializationException;
 import org.jupnp.transport.spi.MulticastReceiver;
 import org.jupnp.transport.spi.NetworkAddressFactory;
 import org.jupnp.transport.spi.SOAPActionProcessor;
+import org.jupnp.transport.spi.SharedStreamServerProvider;
 import org.jupnp.transport.spi.StreamClient;
 import org.jupnp.transport.spi.StreamClientConfiguration;
 import org.jupnp.transport.spi.StreamServer;
-import org.osgi.framework.BundleContext;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.ConfigurationPolicy;
@@ -64,14 +61,15 @@ import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
-import org.osgi.service.http.HttpService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Configuration data of a typical UPnP stack on OSGi.
  * <p>
- * This configuration utilizes the default network transport implementation found in {@link org.jupnp.transport.impl}.
+ * The network transport implementation is provided by a separate bundle (e.g.
+ * <code>org.jupnp.transport.jetty9</code> or <code>org.jupnp.transport.jetty12</code>) and injected via
+ * {@link #addTransportConfiguration(TransportConfiguration)}; this class no longer bundles one itself.
  * </p>
  * <p>
  * This configuration utilizes the SAX default descriptor binders found in {@link org.jupnp.binding.xml}.
@@ -127,16 +125,14 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
 
     protected Namespace namespace;
 
-    protected BundleContext context;
-
     @SuppressWarnings("rawtypes")
     protected final List<TransportConfiguration> transportConfigurations = new CopyOnWriteArrayList<>();
+
+    protected final List<SharedStreamServerProvider> sharedStreamServerProviders = new CopyOnWriteArrayList<>();
 
     protected Integer timeoutSeconds = 10;
     protected Integer retryIterations = 5;
     protected Integer retryAfterSeconds = (int) TimeUnit.MINUTES.toSeconds(10);
-
-    protected HttpService httpService;
 
     /**
      * Defaults to port '0', ephemeral.
@@ -219,9 +215,7 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
     }
 
     @Activate
-    protected void activate(BundleContext context, Map<String, Object> configProps) {
-        this.context = context;
-
+    protected void activate(Map<String, Object> configProps) {
         setConfigValues(configProps);
 
         createExecutorServices();
@@ -245,28 +239,29 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
     }
 
     /**
-     * The OSGi HttpService is optional: on runtimes that do not provide it (e.g. pax-web 10 and newer, where the
-     * javax HttpService no longer exists), UPnP requests are served by the standalone stream server of the
-     * discovered transport instead of the shared HTTP server. The greedy policy option reactivates this component
-     * when an HttpService appears after activation, so the outcome does not depend on bundle start order.
+     * A {@link SharedStreamServerProvider} is entirely optional: on runtimes that don't have one registered
+     * (e.g. because no optional bundle such as <code>org.jupnp.transport.httpservice</code> is installed, or it
+     * is installed but its own dependency -- the classic OSGi HttpService -- isn't available, as on pax-web 10
+     * and newer, which dropped it in favor of the Jakarta Servlet Whiteboard), UPnP requests are served by the
+     * standalone stream server of the discovered transport instead of a shared HTTP server. The greedy policy
+     * option reactivates this component when a provider appears after activation, so the outcome does not depend
+     * on bundle start order.
      * <p>
-     * The bind/unbind methods deliberately take {@code Object}, not {@link HttpService}, with the service type
-     * given explicitly via {@code service = HttpService.class} instead: Declarative Services runtimes (e.g.
-     * Apache Felix SCR) locate bind methods via {@code Class.getDeclaredMethods()}, which must resolve every
-     * declared method's parameter types to build {@code Method} objects -- including on runtimes that never
-     * introspect or invoke this particular method, e.g. because the reference is never satisfied. On a genuinely
-     * HttpService-less runtime (org.osgi.service.http not just unbound, but entirely unavailable), a method
-     * literally typed {@code HttpService} would throw {@link NoClassDefFoundError} out of that reflective call,
-     * breaking introspection of the whole component -- not just this optional reference.
+     * Core has no compile-time dependency on javax.servlet or the OSGi HttpService API: {@link
+     * SharedStreamServerProvider} is a generic seam, so whatever a provider bundle needs to talk to its shared
+     * server (HttpService, some other whiteboard, etc.) stays entirely inside that bundle.
+     * <p>
+     * Cardinality and the target filter mirror {@link #addTransportConfiguration(TransportConfiguration)}: at
+     * most one provider is expected, and {@link #createStreamServer(NetworkAddressFactory)} fails loudly rather
+     * than picking one if, unexpectedly, more than one is bound.
      */
-    @Reference(service = HttpService.class, cardinality = ReferenceCardinality.OPTIONAL,
-            policyOption = ReferencePolicyOption.GREEDY)
-    public void setHttpService(Object httpService) {
-        this.httpService = (HttpService) httpService;
+    @Reference(cardinality = ReferenceCardinality.MULTIPLE, policyOption = ReferencePolicyOption.GREEDY, target = "(!(serviceloader.mediator=*))")
+    public void addSharedStreamServerProvider(SharedStreamServerProvider provider) {
+        sharedStreamServerProviders.add(provider);
     }
 
-    public void unsetHttpService(Object httpService) {
-        this.httpService = null;
+    public void removeSharedStreamServerProvider(SharedStreamServerProvider provider) {
+        sharedStreamServerProviders.remove(provider);
     }
 
     @Override
@@ -312,14 +307,19 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
     @Override
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory) {
-        if (httpService != null) {
-            logger.debug("createStreamServer using OSGi HttpService");
-            return new ServletStreamServerImpl(new ServletStreamServerConfigurationImpl(
-                    HttpServiceServletContainerAdapter.getInstance(httpService, context),
-                    httpProxyPort != -1 ? httpProxyPort : callbackURI.getBasePath().getPort()));
+        List<SharedStreamServerProvider> providers = sharedStreamServerProviders;
+        if (providers.size() > 1) {
+            throw new InitializationException("Multiple shared stream server providers found: " + providers + ". "
+                    + "Make sure at most one shared-server bundle (e.g. org.jupnp.transport.httpservice) is "
+                    + "installed.");
+        }
+        if (!providers.isEmpty()) {
+            logger.debug("createStreamServer using a shared stream server provider");
+            return providers.get(0)
+                    .createStreamServer(httpProxyPort != -1 ? httpProxyPort : callbackURI.getBasePath().getPort());
         }
 
-        logger.debug("createStreamServer without OSGi HttpService");
+        logger.debug("createStreamServer without a shared stream server provider");
         return getTransportConfiguration().createStreamServer(networkAddressFactory.getStreamListenPort());
     }
 

@@ -13,16 +13,16 @@
  *
  * SPDX-License-Identifier: CDDL-1.0
  */
-package org.jupnp.transport.impl;
+package org.jupnp.transport.impl.servlet;
 
 import java.net.InetAddress;
 
 import javax.servlet.Servlet;
 
 import org.jupnp.transport.Router;
-import org.jupnp.transport.impl.async.AsyncServlet;
-import org.jupnp.transport.impl.async.AsyncUtil;
-import org.jupnp.transport.impl.blocking.BlockingServlet;
+import org.jupnp.transport.impl.servlet.async.AsyncServlet;
+import org.jupnp.transport.impl.servlet.async.AsyncUtil;
+import org.jupnp.transport.impl.servlet.blocking.BlockingServlet;
 import org.jupnp.transport.spi.InitializationException;
 import org.jupnp.transport.spi.StreamServer;
 import org.slf4j.Logger;

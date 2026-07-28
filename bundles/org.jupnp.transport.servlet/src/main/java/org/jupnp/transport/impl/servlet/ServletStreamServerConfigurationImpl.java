@@ -13,16 +13,15 @@
  *
  * SPDX-License-Identifier: CDDL-1.0
  */
-package org.jupnp.transport.impl;
+package org.jupnp.transport.impl.servlet;
 
-import org.jupnp.transport.spi.ServletContainerAdapter;
 import org.jupnp.transport.spi.StreamServerConfiguration;
 
 /**
  * Settings for the async Servlet 2.4/3.0 implementation.
  * <p>
  * If you are trying to integrate jUPnP with an existing/running servlet container, implement
- * {@link org.jupnp.transport.spi.ServletContainerAdapter}.
+ * {@link ServletContainerAdapter}.
  * </p>
  * 
  * @author Christian Bauer

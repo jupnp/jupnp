@@ -40,7 +40,10 @@ import org.osgi.service.cm.ConfigurationAdmin;
  * Activates the actual shipped {@link OSGiUpnpServiceConfiguration} Declarative Services component -- not a
  * synthetic stand-in like {@link TransportDiscoveryComponent} -- with no <code>javax.servlet</code>,
  * <code>javax.servlet.http</code>, or classic <code>org.osgi.service.http.HttpService</code> implementation
- * present on this run's class path (see itest.bndrun's <code>-runbundles</code>).
+ * present on this run's class path (see itest.bndrun's <code>-runbundles</code>): core has no compile-time
+ * dependency on any of them at all, and the optional {@code org.jupnp.transport.httpservice} bridge bundle
+ * that would otherwise provide a {@link org.jupnp.transport.spi.SharedStreamServerProvider} for them isn't
+ * installed in this run.
  * <p>
  * {@link OSGiUpnpServiceConfiguration} only activates once Configuration Admin has a configuration object for
  * pid <code>org.jupnp</code> (its {@code configurationPolicy = REQUIRE}) and
@@ -51,10 +54,11 @@ import org.osgi.service.cm.ConfigurationAdmin;
  * starts the actual UPnP stack, which proves:
  * </p>
  * <ul>
- * <li>SCR can load and activate {@link OSGiUpnpServiceConfiguration} without the optional legacy packages;</li>
+ * <li>SCR can load and activate {@link OSGiUpnpServiceConfiguration} with no shared-server provider bound;</li>
  * <li>the Jetty 12 {@code TransportConfiguration} is injected into it;</li>
- * <li>the standalone Jetty 12 stream server actually starts and binds a real port (with no HttpService to
- * share a port with, {@code createStreamServer()} falls through to the transport's own native server);</li>
+ * <li>the standalone Jetty 12 stream server actually starts and binds a real port (with no
+ * {@link org.jupnp.transport.spi.SharedStreamServerProvider} bound, {@code createStreamServer()} falls
+ * through to the transport's own native server);</li>
  * <li>the resulting {@link UpnpService} is registered and usable.</li>
  * </ul>
  */
