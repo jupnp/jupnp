@@ -168,7 +168,8 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
      * @return the {@link TransportConfiguration} injected via
      *         {@link #addTransportConfiguration(TransportConfiguration)}
      * @throws InitializationException if more than one transport bundle's {@link TransportConfiguration} service
-     *             is currently bound
+     *             is currently bound, or (should not happen while this component is active, given the AT_LEAST_ONE
+     *             cardinality below, but a bind/deactivation race is not ruled out) if none is
      */
     @SuppressWarnings("rawtypes")
     protected TransportConfiguration getTransportConfiguration() {
@@ -182,7 +183,15 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
                     + "Make sure only one jUPnP transport bundle (e.g. org.jupnp.transport.jetty9 or "
                     + "org.jupnp.transport.jetty12) is installed.");
         }
-        return current.isEmpty() ? null : current.get(0);
+        if (current.isEmpty()) {
+            // Callers (createStreamClient(), the createStreamServer() fallback) dereference the result
+            // directly with no null check, matching every other consumer of this method -- fail loudly here
+            // instead of letting them NPE.
+            throw new InitializationException(
+                    "No transport implementation bound. This should not happen while this component is "
+                            + "active, since the reference requires at least one; check for a concurrent unbind.");
+        }
+        return current.get(0);
     }
 
     /**
@@ -208,8 +217,14 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
      * bnd.bnd); without this filter, a mediator present in the same runtime would register a second, separate
      * service instance for the very same transport bundle, and this reference would see it as a spurious
      * ambiguity between "two" transport implementations that are actually just one, registered twice.
+     * <p>
+     * The greedy policy option matters here specifically because of the ambiguity check: with the default
+     * reluctant option, DS would keep this component bound to whichever single transport bundle registered
+     * first and never even look at a second one that registers later, silently defeating the "fail loudly if
+     * more than one is installed" guarantee {@link #getTransportConfiguration()} is supposed to provide.
      */
-    @Reference(cardinality = ReferenceCardinality.AT_LEAST_ONE, target = "(!(serviceloader.mediator=*))")
+    @Reference(cardinality = ReferenceCardinality.AT_LEAST_ONE, policyOption = ReferencePolicyOption.GREEDY,
+            target = "(!(serviceloader.mediator=*))")
     @SuppressWarnings("rawtypes")
     public void addTransportConfiguration(TransportConfiguration transportConfiguration) {
         transportConfigurations.add(transportConfiguration);

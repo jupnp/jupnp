@@ -233,7 +233,7 @@ If you check the connection state with those transports, the connection is alway
 
 | Transport                                                                                                                                | Sends Heartbeat? |
 |------------------------------------------------------------------------------------------------------------------------------------------|:----------------:|
-| `org.jupnp.transport.impl.ServletStreamServerImpl` with `org.jupnp.transport.impl.jetty.JettyServletContainer` (Jetty 9.4 transport) |        YES       |
+| `org.jupnp.transport.impl.servlet.ServletStreamServerImpl` with `org.jupnp.transport.impl.jetty.JettyServletContainer` (Jetty 9.4 transport) |        YES       |
 | `org.jupnp.transport.impl.jetty12.Jetty12StreamServerImpl` (Jetty 12 transport)                                                       |        YES       |
 
 In practice, this heartbeat feature is less useful than it sounds in theory: As you usually don't control which HTTP clients will access your server, sending them "garbage" bytes before responding properly will most likely cause interoperability problems.
