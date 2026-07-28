@@ -223,8 +223,7 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
      * first and never even look at a second one that registers later, silently defeating the "fail loudly if
      * more than one is installed" guarantee {@link #getTransportConfiguration()} is supposed to provide.
      */
-    @Reference(cardinality = ReferenceCardinality.AT_LEAST_ONE, policyOption = ReferencePolicyOption.GREEDY,
-            target = "(!(serviceloader.mediator=*))")
+    @Reference(cardinality = ReferenceCardinality.AT_LEAST_ONE, policyOption = ReferencePolicyOption.GREEDY, target = "(!(serviceloader.mediator=*))")
     @SuppressWarnings("rawtypes")
     public void addTransportConfiguration(TransportConfiguration transportConfiguration) {
         transportConfigurations.add(transportConfiguration);
