@@ -28,8 +28,8 @@
       <groupId>org.jupnp</groupId>
       <artifactId>org.jupnp.android</artifactId>
       <version>${project.version}</version>
-      <!-- org.jupnp.android hard-depends on jetty9; exclude it here so the profiles below stay in
-           sole control of which transport bundle ends up on the classpath. -->
+      <!-- org.jupnp.android hard-depends on jetty9; exclude it here so it doesn't end up on the
+           classpath uninvited for a consumer who explicitly chose a different transport (see below). -->
       <exclusions>
         <exclusion>
           <groupId>org.jupnp</groupId>
@@ -50,37 +50,12 @@
   </dependencies>
 
   <!--
-    Exactly one transport bundle must end up on the classpath: TransportConfigurationProvider fails fast
-    if ServiceLoader finds more than one. Jetty 9 is the default transport for JDK < 17; Jetty 12 replaces
-    it on JDK 17+, it never adds to it.
+    Deliberately no transport dependency here, and no JDK-version-activated profile to auto-pick one:
+    which transport to use (org.jupnp.transport.jetty9 or org.jupnp.transport.jetty12) is the consumer's
+    choice to make explicitly, not something this aggregator should decide based on which JDK happens to
+    build it. That would be an implicit, environment-dependent choice, which is exactly what this PR's
+    fail-fast discovery is meant to prevent. Add exactly one transport bundle as a direct dependency
+    alongside this one. TransportConfigurationProvider fails fast if ServiceLoader finds more than one.
   -->
-  <profiles>
-    <profile>
-      <id>java8-16</id>
-      <activation>
-        <jdk>[,17)</jdk>
-      </activation>
-      <dependencies>
-        <dependency>
-          <groupId>org.jupnp</groupId>
-          <artifactId>org.jupnp.transport.jetty9</artifactId>
-          <version>${project.version}</version>
-        </dependency>
-      </dependencies>
-    </profile>
-    <profile>
-      <id>java17</id>
-      <activation>
-        <jdk>[17,)</jdk>
-      </activation>
-      <dependencies>
-        <dependency>
-          <groupId>org.jupnp</groupId>
-          <artifactId>org.jupnp.transport.jetty12</artifactId>
-          <version>${project.version}</version>
-        </dependency>
-      </dependencies>
-    </profile>
-  </profiles>
 
 </project>
