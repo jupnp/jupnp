@@ -69,17 +69,20 @@ public class JettyServletContainer implements ServletContainerAdapter {
         // Open immediately so we can get the assigned local port
         connector.open();
 
-        // Only add if open() succeeded
-        server.addConnector(connector);
+        try {
+            // Only add if open() succeeded
+            server.addConnector(connector);
 
-        // starts the connector if the server is started (server starts all connectors when started)
-        if (server.isStarted()) {
-            try {
+            // starts the connector if the server is started (server starts all connectors when started)
+            if (server.isStarted()) {
                 connector.start();
-            } catch (Exception e) {
-                logger.warn("Couldn't start connector: {}", connector, e);
-                throw new RuntimeException("Couldn't start connector", e);
             }
+        } catch (Exception e) {
+            // connector.open() above already bound the server socket; close it explicitly so the port
+            // isn't leaked if anything after that point fails.
+            connector.close();
+            logger.warn("Couldn't start connector: {}", connector, e);
+            throw new RuntimeException("Couldn't start connector", e);
         }
         return connector.getLocalPort();
     }
