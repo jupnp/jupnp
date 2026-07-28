@@ -112,23 +112,8 @@ For example, these dependencies are usually required in a Maven POM for jUPnP to
 ```xml
 <dependency>
     <groupId>org.jupnp</groupId>
-    <artifactId>org.jupnp.transport.jetty9</artifactId>
+    <artifactId>org.jupnp.android</artifactId>
     <version>${jupnp.version}</version>
-</dependency>
-<dependency>
-    <groupId>org.eclipse.jetty</groupId>
-    <artifactId>jetty-server</artifactId>
-    <version>${jetty.version}</version>
-</dependency>
-<dependency>
-    <groupId>org.eclipse.jetty</groupId>
-    <artifactId>jetty-servlet</artifactId>
-    <version>${jetty.version}</version>
-</dependency>
-<dependency>
-    <groupId>org.eclipse.jetty</groupId>
-    <artifactId>jetty-client</artifactId>
-    <version>${jetty.version}</version>
 </dependency>
 <dependency>
     <groupId>org.slf4j</groupId>
@@ -136,6 +121,8 @@ For example, these dependencies are usually required in a Maven POM for jUPnP to
     <version>${slf4j.version}</version>
 </dependency>
 ```
+
+`org.jupnp.android` already depends on `org.jupnp` and the Jetty 9.4 transport (`org.jupnp.transport.jetty9`, which in turn pulls in `jetty-server`, `jetty-servlet` and `jetty-client`), so you don't need to add those yourself -- just an SLF4J binding, since libraries never dictate which one you use.
 
 The service component starts and stops the UPnP system when the service component is created and destroyed.
 This depends on how you access the service component from within your activities.
