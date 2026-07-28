@@ -15,6 +15,7 @@
  */
 package org.jupnp;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -171,7 +172,11 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
      */
     @SuppressWarnings("rawtypes")
     protected TransportConfiguration getTransportConfiguration() {
-        List<TransportConfiguration> current = transportConfigurations;
+        // Snapshot once: transportConfigurations is a CopyOnWriteArrayList, so size()/isEmpty()/get(0) as
+        // separate calls could each observe a different underlying array if a provider is bound/unbound
+        // concurrently in between, risking a stale null or IndexOutOfBoundsException. The copy constructor
+        // iterates a single fixed snapshot instead.
+        List<TransportConfiguration> current = new ArrayList<>(transportConfigurations);
         if (current.size() > 1) {
             throw new InitializationException("Multiple transport implementations found: " + current + ". "
                     + "Make sure only one jUPnP transport bundle (e.g. org.jupnp.transport.jetty9 or "
@@ -307,7 +312,8 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
     @Override
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory) {
-        List<SharedStreamServerProvider> providers = sharedStreamServerProviders;
+        // Snapshot once, same reasoning as getTransportConfiguration().
+        List<SharedStreamServerProvider> providers = new ArrayList<>(sharedStreamServerProviders);
         if (providers.size() > 1) {
             throw new InitializationException("Multiple shared stream server providers found: " + providers + ". "
                     + "Make sure at most one shared-server bundle (e.g. org.jupnp.transport.httpservice) is "

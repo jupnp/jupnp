@@ -138,6 +138,7 @@ public class RealConfigurationActivationTest {
                 try {
                     Thread.sleep(sleepTime);
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     throw new IllegalStateException("Unexpected interruption while waiting", e);
                 }
             }
