@@ -58,4 +58,5 @@
 	org.objectweb.asm.tree.analysis;version='[9.6.0,9.6.1)',\
 	org.objectweb.asm.util;version='[9.6.0,9.6.1)',\
 	org.eclipse.jetty.client;version='[9.4.53,9.4.54)',\
-	org.jupnp.transport.jetty9;version='[3.0.6,3.0.7)'
+	org.jupnp.transport.jetty9;version='[3.0.6,3.0.7)',\
+	org.jupnp.transport.servlet;version='[3.0.6,3.0.7)'

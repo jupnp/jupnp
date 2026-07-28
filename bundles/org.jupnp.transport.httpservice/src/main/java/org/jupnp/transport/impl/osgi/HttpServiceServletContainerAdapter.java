@@ -23,8 +23,8 @@ import java.util.concurrent.ExecutorService;
 import javax.servlet.Servlet;
 import javax.servlet.ServletException;
 
-import org.jupnp.transport.impl.async.AsyncServlet;
-import org.jupnp.transport.spi.ServletContainerAdapter;
+import org.jupnp.transport.impl.servlet.ServletContainerAdapter;
+import org.jupnp.transport.impl.servlet.async.AsyncServlet;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.http.HttpService;
 import org.osgi.service.http.NamespaceException;

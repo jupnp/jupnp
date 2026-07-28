@@ -13,7 +13,7 @@
  *
  * SPDX-License-Identifier: CDDL-1.0
  */
-package org.jupnp.transport.impl.async;
+package org.jupnp.transport.impl.servlet.async;
 
 import java.io.IOException;
 
@@ -25,7 +25,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.jupnp.protocol.ProtocolFactory;
-import org.jupnp.transport.impl.ServletUpnpStream;
+import org.jupnp.transport.impl.servlet.ServletUpnpStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

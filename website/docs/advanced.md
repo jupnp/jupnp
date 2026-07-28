@@ -494,8 +494,8 @@ The following transport artifacts are available:
 <dl>
     <dt>`org.jupnp:org.jupnp.transport.jetty9`</dt>
     <dd>
-        This implementation is based on the *Jetty 9.4* HTTP client and server (`org.jupnp.transport.impl.jetty.JettyStreamClientImpl`, `org.jupnp.transport.impl.ServletStreamServerImpl` with `org.jupnp.transport.impl.jetty.JettyServletContainer`).
-        The server side is based on the standard *Servlet 3.0* API.
+        This implementation is based on the *Jetty 9.4* HTTP client and server (`org.jupnp.transport.impl.jetty.JettyStreamClientImpl`, `org.jupnp.transport.impl.servlet.ServletStreamServerImpl` with `org.jupnp.transport.impl.jetty.JettyServletContainer`).
+        The server side is based on the standard *Servlet 3.0* API, provided by the separate `org.jupnp:org.jupnp.transport.servlet` artifact (a transitive dependency of this one).
         It requires a `ServletContainerAdapter` to integrate with the servlet container, the bundled `JettyServletContainer` is such an adapter for a standalone *Jetty 9.4* server.
         For other containers, write your own adapter and provide it to the `ServletStreamServerConfigurationImpl`.
         This implementation runs on Java 11 or newer and works in any environment, including Android.
@@ -531,8 +531,8 @@ public class MyUpnpServiceConfiguration extends DefaultUpnpServiceConfiguration 
 
     @Override
     public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory) {
-        return new org.jupnp.transport.impl.ServletStreamServerImpl(
-            new org.jupnp.transport.impl.ServletStreamServerConfigurationImpl(
+        return new org.jupnp.transport.impl.servlet.ServletStreamServerImpl(
+            new org.jupnp.transport.impl.servlet.ServletStreamServerConfigurationImpl(
                 org.jupnp.transport.impl.jetty.JettyServletContainer.INSTANCE,
                 networkAddressFactory.getStreamListenPort()
             )

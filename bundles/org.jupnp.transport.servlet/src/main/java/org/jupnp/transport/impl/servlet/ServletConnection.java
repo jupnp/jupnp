@@ -13,7 +13,7 @@
  *
  * SPDX-License-Identifier: CDDL-1.0
  */
-package org.jupnp.transport.impl;
+package org.jupnp.transport.impl.servlet;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;

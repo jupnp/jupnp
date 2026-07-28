@@ -31,6 +31,13 @@
       <version>${project.version}</version>
       <scope>compile</scope>
     </dependency>
+    <!-- For ServletStreamServerImpl/ServletStreamServerConfigurationImpl, which core no longer bundles. -->
+    <dependency>
+      <groupId>org.jupnp</groupId>
+      <artifactId>org.jupnp.transport.servlet</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>

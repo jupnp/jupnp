@@ -25,19 +25,6 @@
       <version>${slf4j.version}</version>
       <scope>compile</scope>
     </dependency>
-    <!--
-      Needed only to compile the optional OSGi HttpService-sharing fallback (ServletStreamServerImpl,
-      HttpServiceServletContainerAdapter, etc., see bnd.bnd). Scope "provided" so this does not propagate
-      transitively to consumers such as org.jupnp.transport.jetty12, which has no use for it: the
-      corresponding OSGi Import-Package is marked resolution:=optional, so this bundle still resolves and
-      runs fine on runtimes with no javax.servlet-api at all.
-    -->
-    <dependency>
-      <groupId>javax.servlet</groupId>
-      <artifactId>javax.servlet-api</artifactId>
-      <version>${servlet.api.version}</version>
-      <scope>provided</scope>
-    </dependency>
   </dependencies>
 
   <build>

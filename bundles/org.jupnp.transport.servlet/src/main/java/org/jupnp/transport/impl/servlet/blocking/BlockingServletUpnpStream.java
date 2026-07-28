@@ -13,14 +13,14 @@
  *
  * SPDX-License-Identifier: CDDL-1.0
  */
-package org.jupnp.transport.impl.blocking;
+package org.jupnp.transport.impl.servlet.blocking;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.jupnp.model.message.StreamResponseMessage;
 import org.jupnp.protocol.ProtocolFactory;
-import org.jupnp.transport.impl.ServletUpnpStream;
+import org.jupnp.transport.impl.servlet.ServletUpnpStream;
 
 /**
  * Implementation based on Servlet 2.4 API.

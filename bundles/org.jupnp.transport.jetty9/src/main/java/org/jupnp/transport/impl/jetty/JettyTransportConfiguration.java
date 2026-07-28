@@ -18,8 +18,8 @@ package org.jupnp.transport.impl.jetty;
 import java.util.concurrent.ExecutorService;
 
 import org.jupnp.transport.TransportConfiguration;
-import org.jupnp.transport.impl.ServletStreamServerConfigurationImpl;
-import org.jupnp.transport.impl.ServletStreamServerImpl;
+import org.jupnp.transport.impl.servlet.ServletStreamServerConfigurationImpl;
+import org.jupnp.transport.impl.servlet.ServletStreamServerImpl;
 import org.jupnp.transport.spi.StreamClient;
 import org.jupnp.transport.spi.StreamClientConfiguration;
 import org.jupnp.transport.spi.StreamServer;

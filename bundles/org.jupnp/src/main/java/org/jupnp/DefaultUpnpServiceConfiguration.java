@@ -61,8 +61,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Default configuration data of a typical UPnP stack.
  * <p>
- * This configuration utilizes the default network transport implementation found in
- * {@link org.jupnp.transport.impl}.
+ * The network transport implementation is provided by a separate bundle (e.g.
+ * <code>org.jupnp.transport.jetty9</code> or <code>org.jupnp.transport.jetty12</code>) and discovered via
+ * {@link TransportConfigurationProvider}, see {@link #getTransportConfiguration()}.
  * </p>
  * <p>
  * This configuration utilizes the DOM default descriptor binders found in
