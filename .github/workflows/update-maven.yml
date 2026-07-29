@@ -80,8 +80,8 @@ jobs:
           title: "Update Maven Wrapper to ${{ steps.maven.outputs.version }}"
           body: "PR created by workflow run (update-maven.yml)\n\nCI is disabled by default for PRs created by workflow runs. After reviewing the changes, use Close and Reopen to run the CI."
           branch: gha/update-maven-wrapper
-          author: jupnp-bot <bot@junpnp.org>
-          committer: junpnp-bot <bot@junpnp.org>
+          author: jupnp-bot <bot@jupnp.org>
+          committer: jupnp-bot <bot@jupnp.org>
           delete-branch: true
           labels: infrastructure
           signoff: true
