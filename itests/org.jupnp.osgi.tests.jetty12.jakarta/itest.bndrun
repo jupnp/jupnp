@@ -1,0 +1,109 @@
+-standalone: \
+	../../bom/runtime-index/target/index.xml;name="org.jupnp.bom.runtime-index",\
+	../../bom/test-index/target/index.xml;name="org.jupnp.bom.test-index",\
+	target/index.xml;name="self"
+
+-resolve.effective: active
+
+-tester: biz.aQute.tester.junit-platform
+
+# Run all integration tests which are named xyzTest
+Test-Cases: ${classes;CONCRETE;PUBLIC;NAMED;*Test}
+
+-runfw: org.eclipse.osgi
+-runee: JavaSE-17
+
+Bundle-SymbolicName: ${project.artifactId}
+Bundle-Name: ${project.name}
+Automatic-Module-Name: ${def;bsn}
+
+# The integration test itself does not export anything.
+Export-Package:
+-exportcontents:
+
+-runblacklist: \
+	bnd.identity;id='osgi.cmpn',\
+	bnd.identity;id='slf4j.api',\
+	bnd.identity;id='slf4j.simple'
+
+-runrequires.junit: \
+	bnd.identity;id='biz.aQute.tester.junit-platform',\
+	bnd.identity;id='junit-jupiter-engine'
+
+-runproperties: \
+	org.ops4j.pax.logging.DefaultServiceLog.level=WARN
+
+# No org.osgi.service.http.port needed here: JakartaHttpServiceServletContainerAdapter discovers Pax
+# Web's actual bound port directly from HttpServiceRuntime's own osgi.http.endpoint service property,
+# rather than depending on a framework property that isn't guaranteed to be set in every deployment (and
+# wasn't in this one -- a fixed port here would just reintroduce the exact port-collision fragility this
+# design avoids). Pax Web is left to pick its own default port.
+
+# Unlike org.jupnp.osgi.tests.jetty12 (which deliberately has no HttpService/Whiteboard implementation
+# present, to prove the fallback-to-standalone-server path), this module installs a real Pax Web 11.x
+# Jakarta HTTP Whiteboard implementation, so org.jupnp.transport.jakarta.httpservice's
+# JakartaHttpServiceSharedStreamServerProvider actually has an HttpServiceRuntime to bind to and activate
+# against. org.apache.felix.configadmin is required by RealSharedServerActivationTest, which activates the
+# real org.jupnp.OSGiUpnpServiceConfiguration component (configurationPolicy = REQUIRE) the same way
+# org.jupnp.osgi.tests.jetty12's RealConfigurationActivationTest does.
+-runrequires: \
+	bnd.identity;id='org.jupnp.osgi.tests.jetty12.jakarta',\
+	bnd.identity;id='org.apache.aries.spifly.dynamic.bundle',\
+	bnd.identity;id='org.jupnp.transport.jetty12',\
+	bnd.identity;id='org.jupnp.transport.jakarta.httpservice',\
+	bnd.identity;id='org.eclipse.jetty.compression.gzip',\
+	bnd.identity;id='org.apache.felix.configadmin',\
+	bnd.identity;id='org.ops4j.pax.web.pax-web-jetty',\
+	bnd.identity;id='org.ops4j.pax.web.pax-web-runtime',\
+	bnd.identity;id='org.ops4j.pax.web.pax-web-compatibility-servlet',\
+	bnd.identity;id='org.ops4j.pax.web.pax-web-extender-whiteboard'
+
+#
+# regenerate with: mvn -pl itests/org.jupnp.osgi.tests.jetty12.jakarta -am package -DwithResolver
+#
+-runbundles: \
+	biz.aQute.tester.junit-platform;version='[6.4.0,6.4.1)',\
+	junit-jupiter-api;version='[5.10.1,5.10.2)',\
+	junit-jupiter-engine;version='[5.10.1,5.10.2)',\
+	junit-platform-commons;version='[1.10.1,1.10.2)',\
+	junit-platform-engine;version='[1.10.1,1.10.2)',\
+	junit-platform-launcher;version='[1.10.1,1.10.2)',\
+	org.apache.aries.spifly.dynamic.bundle;version='[1.3.7,1.3.8)',\
+	org.apache.felix.scr;version='[2.2.10,2.2.11)',\
+	org.jupnp;version='[3.0.5,3.0.6)',\
+	org.jupnp.osgi.tests.jetty12.jakarta;version='[3.0.5,3.0.6)',\
+	org.jupnp.transport.jetty12;version='[3.0.5,3.0.6)',\
+	org.jupnp.transport.jakarta.httpservice;version='[3.0.5,3.0.6)',\
+	org.jupnp.transport.jakarta.servlet;version='[3.0.5,3.0.6)',\
+	org.objectweb.asm;version='[9.6.0,9.6.1)',\
+	org.objectweb.asm.commons;version='[9.6.0,9.6.1)',\
+	org.objectweb.asm.tree;version='[9.6.0,9.6.1)',\
+	org.objectweb.asm.tree.analysis;version='[9.6.0,9.6.1)',\
+	org.objectweb.asm.util;version='[9.6.0,9.6.1)',\
+	org.opentest4j;version='[1.3.0,1.3.1)',\
+	org.ops4j.pax.logging.pax-logging-api;version='[2.2.7,2.2.8)',\
+	org.osgi.service.component;version='[1.5.0,1.5.1)',\
+	org.osgi.util.function;version='[1.0.0,1.0.1)',\
+	org.osgi.util.promise;version='[1.0.0,1.0.1)',\
+	org.eclipse.jetty.alpn.client;version='[12.1.10,12.1.11)',\
+	org.eclipse.jetty.client;version='[12.1.10,12.1.11)',\
+	org.eclipse.jetty.compression.common;version='[12.1.10,12.1.11)',\
+	org.eclipse.jetty.compression.gzip;version='[12.1.10,12.1.11)',\
+	org.eclipse.jetty.http;version='[12.1.10,12.1.11)',\
+	org.eclipse.jetty.io;version='[12.1.10,12.1.11)',\
+	org.eclipse.jetty.server;version='[12.1.10,12.1.11)',\
+	org.eclipse.jetty.util;version='[12.1.10,12.1.11)',\
+	org.eclipse.jetty.ee10.servlet;version='[12.1.10,12.1.11)',\
+	jakarta.servlet-api;version='[6.1.0,6.1.1)',\
+	org.apache.felix.configadmin;version='[1.9.26,1.9.27)',\
+	org.ops4j.pax.web.pax-web-api;version='[11.1.2,11.1.3)',\
+	org.ops4j.pax.web.pax-web-jetty;version='[11.1.2,11.1.3)',\
+	org.ops4j.pax.web.pax-web-runtime;version='[11.1.2,11.1.3)',\
+	org.ops4j.pax.web.pax-web-spi;version='[11.1.2,11.1.3)',\
+	org.eclipse.jetty.security;version='[12.1.10,12.1.11)',\
+	org.eclipse.jetty.session;version='[12.1.10,12.1.11)',\
+	org.eclipse.jetty.xml;version='[12.1.10,12.1.11)',\
+	org.ops4j.pax.web.pax-web-tomcat-common;version='[11.1.2,11.1.3)',\
+	org.ops4j.pax.web.pax-web-compatibility-servlet;version='[11.1.2,11.1.3)',\
+	org.osgi.service.servlet;version='[2.0.0,2.0.1)',\
+	org.ops4j.pax.web.pax-web-extender-whiteboard;version='[11.1.2,11.1.3)'

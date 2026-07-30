@@ -127,6 +127,8 @@
       </activation>
       <modules>
         <module>org.jupnp.transport.jetty12</module>
+        <module>org.jupnp.transport.jakarta.servlet</module>
+        <module>org.jupnp.transport.jakarta.httpservice</module>
       </modules>
     </profile>
   </profiles>
