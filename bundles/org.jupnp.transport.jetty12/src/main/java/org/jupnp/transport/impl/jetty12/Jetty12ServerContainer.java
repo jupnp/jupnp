@@ -15,7 +15,9 @@
  */
 package org.jupnp.transport.impl.jetty12;
 
+import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Handler;
+import org.eclipse.jetty.server.NetworkConnector;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Response;
 import org.eclipse.jetty.server.Server;
@@ -106,6 +108,19 @@ public class Jetty12ServerContainer {
             } finally {
                 resetServer();
             }
+        } else if (server.getConnectors().length > 0) {
+            // addConnector() binds a connector's socket immediately via NetworkConnector.open(), independent
+            // of the shared server's own start/stop lifecycle. If the server itself never started -- e.g.
+            // router initialization failing after one or more stream servers called init() but before the
+            // executor actually runs them -- server.isStopped() is already true here, so the branch above
+            // never runs and never asks the connector to close, leaking the bound port. Close any such
+            // connectors directly instead.
+            for (Connector connector : server.getConnectors()) {
+                if (connector instanceof NetworkConnector networkConnector) {
+                    networkConnector.close();
+                }
+            }
+            resetServer();
         }
     }
 

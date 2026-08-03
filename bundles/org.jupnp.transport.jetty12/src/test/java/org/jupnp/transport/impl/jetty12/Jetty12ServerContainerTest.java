@@ -79,4 +79,37 @@ class Jetty12ServerContainerTest {
 
         assertTrue(Jetty12ServerContainer.INSTANCE.server.isStopped());
     }
+
+    @Test
+    void stopIfRunningClosesConnectorOpenedBeforeServerStarted() throws Exception {
+        UpnpServiceConfiguration configuration = new MockUpnpServiceConfiguration(false, true);
+        MockRouter router = new MockRouter(configuration, new MockProtocolFactory());
+
+        StreamServer<Jetty12StreamServerConfigurationImpl> server = new Jetty12StreamServerImpl(
+                new Jetty12StreamServerConfigurationImpl(0));
+
+        InetAddress loopback = InetAddress.getByName("127.0.0.1");
+        server.init(loopback, router);
+        int port = server.getPort();
+        assertTrue(port > 0);
+
+        // Never calling server.run() mirrors a router whose initialization fails after init() opened a
+        // connector but before the executor actually starts the shared Jetty server.
+        assertTrue(Jetty12ServerContainer.INSTANCE.server.isStopped());
+        assertEquals(1, Jetty12ServerContainer.INSTANCE.server.getConnectors().length);
+
+        server.stop();
+
+        assertEquals(0, Jetty12ServerContainer.INSTANCE.server.getConnectors().length);
+
+        // The port must be free again -- a fresh connector can rebind it.
+        StreamServer<Jetty12StreamServerConfigurationImpl> rebound = new Jetty12StreamServerImpl(
+                new Jetty12StreamServerConfigurationImpl(port));
+        try {
+            rebound.init(loopback, router);
+            assertEquals(port, rebound.getPort());
+        } finally {
+            rebound.stop();
+        }
+    }
 }
