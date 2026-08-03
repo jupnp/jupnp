@@ -20,7 +20,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.Arrays;
 import java.util.Hashtable;
 import java.util.List;
 
@@ -114,10 +113,16 @@ public class RealSharedServerActivationTest {
         RuntimeDTO runtimeDTO = runtime.getRuntimeDTO();
         boolean found = false;
         StringBuilder seen = new StringBuilder();
+        // JakartaHttpServiceServletContainerAdapter publishes a dedicated ServletContextHelper mounted at the
+        // callback path itself (see its class Javadoc for why: sharing the Whiteboard's default context, by
+        // name or by path, was silently unreachable against a real openHAB/Pax Web deployment). The servlet's
+        // own pattern is therefore just "/*", relative to that context -- the "/upnpcallback" prefix now shows
+        // up on the context, not the pattern.
         for (ServletContextDTO contextDTO : runtimeDTO.servletContextDTOs) {
             for (ServletDTO servletDTO : contextDTO.servletDTOs) {
-                seen.append(String.join(",", servletDTO.patterns)).append(' ');
-                if (Arrays.stream(servletDTO.patterns).anyMatch(pattern -> pattern.startsWith("/upnpcallback"))) {
+                seen.append(contextDTO.contextPath).append('[').append(String.join(",", servletDTO.patterns))
+                        .append("] ");
+                if (contextDTO.contextPath.startsWith("/upnpcallback")) {
                     found = true;
                 }
             }
@@ -128,10 +133,10 @@ public class RealSharedServerActivationTest {
                     .append(failedServletDTO.failureReason).append(' ');
         }
         assertTrue(found,
-                "Pax Web's HttpServiceRuntime should list a servlet registered for /upnpcallback -- check "
-                        + "JakartaHttpServiceServletContainerAdapter.registerServlet() and the "
-                        + "osgi.http.whiteboard.servlet.pattern property it sets. Registered patterns seen: [" + seen
-                        + "]. Failed registrations: [" + failed + "]");
+                "Pax Web's HttpServiceRuntime should list a servlet registered under a context at /upnpcallback -- "
+                        + "check JakartaHttpServiceServletContainerAdapter.registerServlet() and the "
+                        + "osgi.http.whiteboard.context.path property it sets on the dedicated context. "
+                        + "Registered contexts/patterns seen: [" + seen + "]. Failed registrations: [" + failed + "]");
     }
 
     private static <T> T waitForService(Class<T> clazz) {
