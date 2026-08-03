@@ -29,8 +29,12 @@ import org.jupnp.transport.impl.servlet.jakarta.ServletContainerAdapter;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
 import org.osgi.framework.ServiceRegistration;
+import org.osgi.service.servlet.context.ServletContextHelper;
 import org.osgi.service.servlet.runtime.HttpServiceRuntime;
 import org.osgi.service.servlet.runtime.HttpServiceRuntimeConstants;
+import org.osgi.service.servlet.runtime.dto.FailedServletDTO;
+import org.osgi.service.servlet.runtime.dto.RuntimeDTO;
+import org.osgi.service.servlet.runtime.dto.ServletContextDTO;
 import org.osgi.service.servlet.whiteboard.HttpWhiteboardConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,11 +54,24 @@ import jakarta.servlet.Servlet;
  * {@code HttpServiceServletContainerAdapter} is -- there's only one shared HTTP runtime to register against.
  * </p>
  * <p>
- * The registered servlet is deliberately left on the Whiteboard's default {@code ServletContextHelper}
- * (selected implicitly, no {@code osgi.http.whiteboard.context.select} property set), which by default applies
- * no authentication -- if a deployment layers its own security onto that default context, jUPnP's callback
- * servlet would need to select a dedicated, unauthenticated context instead, which this adapter does not
- * currently do.
+ * The registered servlet is deliberately kept off the Whiteboard's default {@code ServletContextHelper}: this
+ * adapter publishes its own, uniquely-named {@link ServletContextHelper} (see {@link #CONTEXT_NAME}), mounted
+ * at the UPnP callback path itself rather than {@code /}, and selects it explicitly via
+ * {@code osgi.http.whiteboard.context.select}. Two separate problems ruled out sharing a context with anything
+ * else, both observed directly against a real openHAB Pax Web runtime: (1) a deployment can have more than one
+ * {@code ServletContextHelper} registered under the name {@code "default"} at the same time -- openHAB's own
+ * {@code HttpService} compatibility layer registers additional per-consumer default-like contexts alongside
+ * Pax Web's own single true default -- so a name-based selector targeting {@code "default"} explicitly matched
+ * all of them just as ambiguously as relying on implicit default-context selection did; and (2) even after
+ * moving to a uniquely-named context, mounting it at the same path ({@code /}) as several other contexts
+ * (Pax Web's own default, openHAB's compatibility default, the REST API's context, the UI's context) meant Pax
+ * Web's own logs reported the servlet as successfully added, while the endpoint was still unreachable over
+ * real HTTP -- the underlying Jetty server apparently only dispatches live traffic to one context handler per
+ * identical context path, regardless of how many Whiteboard-level contexts nominally share it. Owning both a
+ * unique name and a unique path -- one nothing else in the deployment would plausibly also use -- sidesteps
+ * both problems at once. The context applies no authentication (the same default behavior the shared default
+ * context has) -- if a deployment needs its own authentication on the UPnP callback path, that would need to
+ * be layered onto this context specifically.
  * </p>
  *
  * @author Holger Friedrich - jakarta.servlet/OSGi Whiteboard counterpart of HttpServiceServletContainerAdapter
@@ -77,13 +94,32 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
      * {@link #confirmWhiteboardPickedUpRegistration}. Generous on purpose: a Whiteboard implementation's own
      * bootstrap (binding its own {@code HttpService}, creating its default context, wiring that context into
      * a real servlet container handler) is a multi-step process that runs independently of, and can easily
-     * outlast, this bundle's own startup -- observed directly against Pax Web 11.x via DEBUG-level logging.
+     * outlast, this bundle's own startup -- observed directly against Pax Web 11.x via DEBUG-level logging,
+     * and confirmed against a real openHAB startup where the full 20s of an earlier, smaller timeout was
+     * consumed before falling back: a live deployment has many other Whiteboard resources (REST API, web UI,
+     * addon UIs) registering at the same time, so jUPnP's callback servlet can end up queued behind all of
+     * that.
      */
-    private static final long REGISTRATION_CONFIRM_TIMEOUT_MILLIS = 20000;
-    private static final long REGISTRATION_CONFIRM_POLL_MILLIS = 100;
+    private static final long REGISTRATION_CONFIRM_TIMEOUT_MILLIS = 60000;
+    private static final long REGISTRATION_CONFIRM_POLL_MILLIS = 250;
+
+    /**
+     * Grace period to wait for confirmation after the fallback re-register in
+     * {@link #confirmWhiteboardPickedUpRegistration}.
+     */
+    private static final long REREGISTER_CONFIRM_TIMEOUT_MILLIS = 5000;
+
+    /**
+     * {@code osgi.http.whiteboard.context.name} of the dedicated {@link ServletContextHelper} this adapter
+     * publishes and selects, chosen to be one nothing else in a deployment would plausibly also register a
+     * context under -- see the class Javadoc for why relying on the Whiteboard's shared default context isn't
+     * safe.
+     */
+    private static final String CONTEXT_NAME = "org.jupnp";
 
     private final BundleContext context;
     private ServiceRegistration<Servlet> registration;
+    private ServiceRegistration<ServletContextHelper> contextRegistration;
 
     private JakartaHttpServiceServletContainerAdapter(BundleContext context) {
         this.context = context;
@@ -177,14 +213,35 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
     @Override
     public synchronized void registerServlet(String contextPath, Servlet servlet) {
         if (registration == null) {
+            registerOwnServletContext(contextPath);
             logger.info("Registering UPnP callback servlet as {}", contextPath);
             Dictionary<String, Object> props = new Hashtable<>();
-            props.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_SERVLET_PATTERN,
-                    new String[] { contextPath, contextPath + "/*" });
+            // Relative to the dedicated context registered below, which already carries contextPath as its
+            // own osgi.http.whiteboard.context.path -- "/*" alone matches both the context root (the exact
+            // external URL contextPath, no trailing segment) and everything under it, equivalent to the
+            // {contextPath, contextPath + "/*"} pair this used before moving off the shared default context.
+            props.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_SERVLET_PATTERN, new String[] { "/*" });
             props.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_SERVLET_ASYNC_SUPPORTED, Boolean.TRUE);
+            props.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_SELECT,
+                    "(" + HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_NAME + "=" + CONTEXT_NAME + ")");
             registration = context.registerService(Servlet.class, servlet, props);
             confirmWhiteboardPickedUpRegistration(contextPath, props, servlet);
         }
+    }
+
+    /**
+     * Publishes the dedicated {@link ServletContextHelper} the callback servlet is registered against, at
+     * {@code contextPath} itself rather than {@code "/"} -- see the class Javadoc for why sharing a context
+     * path with other contexts isn't safe either, even with a uniquely-named context. The anonymous subclass
+     * inherits every method's documented default behavior (no authentication, resource lookups against this
+     * bundle), identical to what the default context itself does.
+     */
+    private void registerOwnServletContext(String contextPath) {
+        Dictionary<String, Object> props = new Hashtable<>();
+        props.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_NAME, CONTEXT_NAME);
+        props.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_PATH, contextPath);
+        contextRegistration = context.registerService(ServletContextHelper.class, new ServletContextHelper() {
+        }, props);
     }
 
     /**
@@ -209,10 +266,71 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
             }
         }
         if (!isPickedUpByWhiteboard(contextPath)) {
-            logger.debug("Whiteboard hasn't picked up the servlet registration for {} yet, re-registering",
-                    contextPath);
+            logger.warn(
+                    "Whiteboard hasn't picked up the servlet registration for {} within {}ms, re-registering as a last resort",
+                    contextPath, REGISTRATION_CONFIRM_TIMEOUT_MILLIS);
             registration.unregister();
             registration = context.registerService(Servlet.class, servlet, props);
+            logFinalRegistrationOutcome(contextPath);
+        }
+    }
+
+    private void logFinalRegistrationOutcome(String contextPath) {
+        long deadline = System.currentTimeMillis() + REREGISTER_CONFIRM_TIMEOUT_MILLIS;
+        while (!isPickedUpByWhiteboard(contextPath) && System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(REGISTRATION_CONFIRM_POLL_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        if (isPickedUpByWhiteboard(contextPath)) {
+            logger.info("Whiteboard picked up the re-registered servlet for {}", contextPath);
+        } else {
+            logger.warn(
+                    "Whiteboard still hasn't picked up the servlet registration for {} after re-registering -- "
+                            + "the UPnP callback may not be reachable until the Whiteboard implementation catches up",
+                    contextPath);
+            logRegistrationDiagnostics(contextPath);
+        }
+    }
+
+    /**
+     * Dumps the Whiteboard's own view of what happened to the registration when
+     * {@link #logFinalRegistrationOutcome} gives up: {@code calculateRequestInfoDTO} only tells us the servlet
+     * wasn't matched, not why -- a pattern conflict with another webapp, a missing default context, or similar
+     * is reported by the Whiteboard as a {@code FailedServletDTO} instead, which this surfaces explicitly so a
+     * deployment-specific conflict doesn't look identical to a merely slow Whiteboard.
+     */
+    private void logRegistrationDiagnostics(String contextPath) {
+        ServiceReference<HttpServiceRuntime> reference = context.getServiceReference(HttpServiceRuntime.class);
+        if (reference == null) {
+            logger.warn("No HttpServiceRuntime service available to diagnose the {} registration", contextPath);
+            return;
+        }
+        HttpServiceRuntime runtime = context.getService(reference);
+        if (runtime == null) {
+            logger.warn("Could not obtain the HttpServiceRuntime service to diagnose the {} registration", contextPath);
+            return;
+        }
+        try {
+            RuntimeDTO runtimeDTO = runtime.getRuntimeDTO();
+            for (FailedServletDTO failed : runtimeDTO.failedServletDTOs) {
+                for (String pattern : failed.patterns) {
+                    if (pattern.startsWith(contextPath)) {
+                        logger.warn("Whiteboard reports {} as a FAILED registration, reason code {}", contextPath,
+                                failed.failureReason);
+                    }
+                }
+            }
+            StringBuilder contexts = new StringBuilder();
+            for (ServletContextDTO contextDTO : runtimeDTO.servletContextDTOs) {
+                contexts.append(contextDTO.name).append('=').append(contextDTO.contextPath).append(' ');
+            }
+            logger.warn("Whiteboard's currently known servlet contexts: [{}]", contexts.toString().trim());
+        } finally {
+            context.ungetService(reference);
         }
     }
 
@@ -241,6 +359,10 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
         if (registration != null) {
             registration.unregister();
             registration = null;
+        }
+        if (contextRegistration != null) {
+            contextRegistration.unregister();
+            contextRegistration = null;
         }
     }
 }
