@@ -83,13 +83,6 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
     private static JakartaHttpServiceServletContainerAdapter instance;
 
     /**
-     * How long to wait for {@link HttpServiceRuntime} to publish a usable endpoint, see
-     * {@link #discoverPortFromRuntime()}.
-     */
-    private static final long PORT_DISCOVERY_TIMEOUT_MILLIS = 5000;
-    private static final long PORT_DISCOVERY_POLL_MILLIS = 100;
-
-    /**
      * How long to wait for the Whiteboard to pick up a registration, see
      * {@link #confirmWhiteboardPickedUpRegistration}. Generous on purpose: a Whiteboard implementation's own
      * bootstrap (binding its own {@code HttpService}, creating its default context, wiring that context into
@@ -102,6 +95,17 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
      */
     private static final long REGISTRATION_CONFIRM_TIMEOUT_MILLIS = 60000;
     private static final long REGISTRATION_CONFIRM_POLL_MILLIS = 250;
+
+    /**
+     * How long to wait for {@link HttpServiceRuntime} to publish a usable endpoint, see
+     * {@link #discoverPortFromRuntime(long, long)}. Deliberately the same budget as
+     * {@link #REGISTRATION_CONFIRM_TIMEOUT_MILLIS}: both are waiting on the same underlying event -- the
+     * Whiteboard implementation finishing its own startup -- so there's no reason for this one to give up
+     * sooner and have {@link #addConnector(String, int)} throw before the Whiteboard genuinely had a chance
+     * to start.
+     */
+    private static final long PORT_DISCOVERY_TIMEOUT_MILLIS = REGISTRATION_CONFIRM_TIMEOUT_MILLIS;
+    private static final long PORT_DISCOVERY_POLL_MILLIS = REGISTRATION_CONFIRM_POLL_MILLIS;
 
     /**
      * Grace period to wait for confirmation after the fallback re-register in
@@ -121,7 +125,9 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
     private ServiceRegistration<Servlet> registration;
     private ServiceRegistration<ServletContextHelper> contextRegistration;
 
-    private JakartaHttpServiceServletContainerAdapter(BundleContext context) {
+    // Package-private rather than private so a test can construct its own instance directly, bypassing the
+    // getInstance() singleton, without needing a real BundleContext/HttpServiceRuntime.
+    JakartaHttpServiceServletContainerAdapter(BundleContext context) {
         this.context = context;
     }
 
@@ -138,11 +144,32 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
 
     @Override
     public int addConnector(String host, int port) throws IOException {
+        return addConnector(host, port, PORT_DISCOVERY_TIMEOUT_MILLIS, PORT_DISCOVERY_POLL_MILLIS);
+    }
+
+    /**
+     * Package-private overload taking the discovery timeout/poll interval explicitly, so a test can exercise
+     * the timeout-exceeded path (including the {@link IOException} below) without waiting out the real
+     * {@link #PORT_DISCOVERY_TIMEOUT_MILLIS} budget. {@link #addConnector(String, int)} delegates here with
+     * the real constants.
+     *
+     * @throws IOException if {@code port} is {@code -1} (bind to whatever the Whiteboard is actually
+     *             listening on) and no usable endpoint could be discovered from {@link HttpServiceRuntime}
+     *             within {@code timeoutMillis} -- returning the caller's original, unbound {@code -1} instead
+     *             would violate {@code ServletContainerAdapter.addConnector()}'s "actual registered local
+     *             port" contract silently, leaving the router to advertise a callback URL nothing is actually
+     *             listening on
+     */
+    int addConnector(String host, int port, long timeoutMillis, long pollMillis) throws IOException {
         if (port == -1) {
-            Integer discovered = discoverPortFromRuntime();
-            if (discovered != null) {
-                port = discovered;
+            Integer discovered = discoverPortFromRuntime(timeoutMillis, pollMillis);
+            if (discovered == null) {
+                throw new IOException("Could not discover a usable HTTP endpoint from HttpServiceRuntime's "
+                        + HttpServiceRuntimeConstants.HTTP_SERVICE_ENDPOINT + " property within " + timeoutMillis
+                        + "ms -- check that a Jakarta HTTP Whiteboard implementation (e.g. Pax Web) is installed "
+                        + "and has finished starting");
             }
+            port = discovered;
         }
         return port;
     }
@@ -155,24 +182,24 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
      * configuration, however it got configured, rather than depending on a deployment happening to also
      * mirror it as a framework property.
      * <p>
-     * Polls for up to {@link #PORT_DISCOVERY_TIMEOUT_MILLIS}: the {@link HttpServiceRuntime} service can
-     * register slightly before its implementation has actually finished binding a listener and updated this
-     * property, so a single immediate read can race a runtime that's still starting up.
+     * Polls for up to {@code timeoutMillis}: the {@link HttpServiceRuntime} service can register slightly
+     * before its implementation has actually finished binding a listener and updated this property, so a
+     * single immediate read can race a runtime that's still starting up.
      * </p>
      *
      * @return the port from the runtime's first plain {@code http://} endpoint, or {@code null} if none could
      *         be determined within the timeout (e.g. the runtime only ever advertises a relative path
      *         because its scheme/authority aren't known, as can happen in a bridged Whiteboard implementation)
      */
-    private Integer discoverPortFromRuntime() {
-        long deadline = System.currentTimeMillis() + PORT_DISCOVERY_TIMEOUT_MILLIS;
+    private Integer discoverPortFromRuntime(long timeoutMillis, long pollMillis) {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
         while (true) {
             Integer port = readPortFromRuntime();
             if (port != null || System.currentTimeMillis() >= deadline) {
                 return port;
             }
             try {
-                Thread.sleep(PORT_DISCOVERY_POLL_MILLIS);
+                Thread.sleep(pollMillis);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return null;
