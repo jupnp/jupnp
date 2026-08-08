@@ -33,7 +33,7 @@
     "@docusaurus/types": "^3.10.2",
     "@types/lunr": "^2",
     "@types/react": "^19",
-    "typescript": "~6.0.3"
+    "typescript": "~7.0.2"
   },
   "browserslist": {
     "production": [
