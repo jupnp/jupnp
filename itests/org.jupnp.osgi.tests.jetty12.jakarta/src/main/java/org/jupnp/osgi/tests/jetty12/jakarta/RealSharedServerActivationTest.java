@@ -15,11 +15,16 @@
  */
 package org.jupnp.osgi.tests.jetty12.jakarta;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.Hashtable;
 import java.util.List;
 
@@ -36,9 +41,6 @@ import org.osgi.framework.ServiceReference;
 import org.osgi.service.cm.Configuration;
 import org.osgi.service.cm.ConfigurationAdmin;
 import org.osgi.service.servlet.runtime.HttpServiceRuntime;
-import org.osgi.service.servlet.runtime.dto.RuntimeDTO;
-import org.osgi.service.servlet.runtime.dto.ServletContextDTO;
-import org.osgi.service.servlet.runtime.dto.ServletDTO;
 
 /**
  * Activates the real {@link OSGiUpnpServiceConfiguration} Declarative Services component with a genuine Pax
@@ -103,40 +105,51 @@ public class RealSharedServerActivationTest {
         }
 
         // The proof this is genuinely going through Pax Web's Whiteboard, not just that
-        // JakartaHttpServiceServletContainerAdapter published a Servlet service nobody consumed: query Pax
-        // Web's own HttpServiceRuntime DTO and confirm it lists our servlet's registered pattern.
-        waitForAssert(this::assertUpnpCallbackServletRegisteredWithWhiteboard);
+        // JakartaHttpServiceServletContainerAdapter published a Servlet service nobody consumed: send a real
+        // HTTP request through the whole live pipeline (HTTP listener -> Pax Web context selection -> "/*"
+        // servlet mapping -> AsyncServlet -> jUPnP's Router/ProtocolFactory) and check for a response only
+        // jUPnP's own code can produce. Querying HttpServiceRuntime's DTOs instead would not be enough: a real
+        // openHAB/Pax Web deployment has reported a servlet as successfully registered while the endpoint was
+        // nevertheless unreachable over actual HTTP -- see JakartaHttpServiceServletContainerAdapter's class
+        // Javadoc for that failure mode, which is exactly what this test needs to catch.
+        waitForAssert(() -> assertUpnpCallbackServletReachableOverHttp(activeStreamServers.get(0), upnpService));
     }
 
-    private void assertUpnpCallbackServletRegisteredWithWhiteboard() {
-        HttpServiceRuntime runtime = waitForService(HttpServiceRuntime.class);
-        RuntimeDTO runtimeDTO = runtime.getRuntimeDTO();
-        boolean found = false;
-        StringBuilder seen = new StringBuilder();
-        // JakartaHttpServiceServletContainerAdapter publishes a dedicated ServletContextHelper mounted at the
-        // callback path itself (see its class Javadoc for why: sharing the Whiteboard's default context, by
-        // name or by path, was silently unreachable against a real openHAB/Pax Web deployment). The servlet's
-        // own pattern is therefore just "/*", relative to that context -- the "/upnpcallback" prefix now shows
-        // up on the context, not the pattern.
-        for (ServletContextDTO contextDTO : runtimeDTO.servletContextDTOs) {
-            for (ServletDTO servletDTO : contextDTO.servletDTOs) {
-                seen.append(contextDTO.contextPath).append('[').append(String.join(",", servletDTO.patterns))
-                        .append("] ");
-                if (contextDTO.contextPath.startsWith("/upnpcallback")) {
-                    found = true;
-                }
-            }
+    private void assertUpnpCallbackServletReachableOverHttp(NetworkAddress streamServer, UpnpService upnpService) {
+        String basePath = upnpService.getConfiguration().getNamespace().getBasePath().getPath();
+        String host = streamServer.getAddress().getHostAddress();
+        if (host.contains(":")) {
+            host = "[" + host + "]";
         }
-        StringBuilder failed = new StringBuilder();
-        for (var failedServletDTO : runtimeDTO.failedServletDTOs) {
-            failed.append(String.join(",", failedServletDTO.patterns)).append(":reason=")
-                    .append(failedServletDTO.failureReason).append(' ');
+        URI probeUri = URI.create("http://" + host + ":" + streamServer.getPort() + basePath + "/reachability-probe");
+
+        HttpResponse<Void> response;
+        try {
+            // NOTIFY to a path that doesn't end in Namespace.CALLBACK_FILE ("/cb") can never match a GENA
+            // event subscription in ProtocolFactoryImpl.createReceivingSync() -- it falls through to that
+            // method's final `throw new ProtocolCreationException(...)`, which UpnpStream.process() turns
+            // into HTTP 501. That 501 is a signal only jUPnP's own router produces: Pax Web/Jetty return a
+            // plain 404 for any path nothing is mapped to, never 501, so getting 501 back here -- rather than
+            // a connection failure or an ordinary 404 -- is what actually proves the request reached
+            // AsyncServlet and jUPnP's Router, not just that Pax Web's Whiteboard modeled the registration.
+            HttpRequest request = HttpRequest.newBuilder(probeUri)
+                    .method("NOTIFY",
+                            HttpRequest.BodyPublishers
+                                    .ofString("<e:propertyset xmlns:e=\"urn:schemas-upnp-org:event-1-0\"/>"))
+                    .header("Content-Type", "text/xml").header("NT", "upnp:event").header("NTS", "upnp:propchange")
+                    .header("SID", "uuid:jupnp-itest-reachability-probe").header("SEQ", "0").build();
+            response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.discarding());
+        } catch (Exception e) {
+            throw new AssertionError("Could not reach " + probeUri + " -- check that "
+                    + "JakartaHttpServiceServletContainerAdapter actually registered a reachable context/servlet", e);
         }
-        assertTrue(found,
-                "Pax Web's HttpServiceRuntime should list a servlet registered under a context at /upnpcallback -- "
-                        + "check JakartaHttpServiceServletContainerAdapter.registerServlet() and the "
-                        + "osgi.http.whiteboard.context.path property it sets on the dedicated context. "
-                        + "Registered contexts/patterns seen: [" + seen + "]. Failed registrations: [" + failed + "]");
+        assertEquals(501, response.statusCode(),
+                "Expected jUPnP's own \"protocol not found\" response (501 Not Implemented) for " + probeUri
+                        + ", proving the request reached AsyncServlet and jUPnP's Router/ProtocolFactory -- got "
+                        + response.statusCode()
+                        + " instead, which points at Pax Web never routing the request to jUPnP's servlet at all "
+                        + "(check JakartaHttpServiceServletContainerAdapter.registerServlet() and the "
+                        + "osgi.http.whiteboard.context.path property it sets on its dedicated context)");
     }
 
     private static <T> T waitForService(Class<T> clazz) {
