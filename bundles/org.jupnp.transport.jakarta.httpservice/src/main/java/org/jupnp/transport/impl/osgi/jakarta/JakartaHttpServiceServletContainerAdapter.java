@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import org.jupnp.transport.impl.servlet.jakarta.ServletContainerAdapter;
+import org.jupnp.transport.spi.InitializationException;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
 import org.osgi.framework.ServiceRegistration;
@@ -280,6 +281,10 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
      * re-registering (a fresh unregister + register) gives the Whiteboard's {@code ServiceTracker} another,
      * unambiguous event to react to, in case its initial scan for already-registered services raced this
      * registration and missed it.
+     *
+     * @throws InitializationException if the Whiteboard still hasn't picked up the registration after the
+     *             re-register and {@link #REREGISTER_CONFIRM_TIMEOUT_MILLIS} grace period -- see
+     *             {@link #logFinalRegistrationOutcome}
      */
     private void confirmWhiteboardPickedUpRegistration(String contextPath, Dictionary<String, Object> props,
             Servlet servlet) {
@@ -302,6 +307,18 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
         }
     }
 
+    /**
+     * After the last-resort re-register, either confirms success or gives up for good: at this point the
+     * Whiteboard has had the full {@link #REGISTRATION_CONFIRM_TIMEOUT_MILLIS} budget plus another
+     * {@link #REREGISTER_CONFIRM_TIMEOUT_MILLIS} to react to an unambiguous, freshly re-registered service --
+     * continuing to run with the callback servlet unconfirmed would leave the router enabled and advertising a
+     * callback endpoint that isn't actually reachable, turning a clear startup problem into GENA callbacks
+     * silently going missing later. Unregisters the never-confirmed servlet/context first, so a later retry
+     * (e.g. the router restarting this stream server) doesn't find {@link #registration} already non-null and
+     * silently skip re-registering in {@link #registerServlet}.
+     *
+     * @throws InitializationException if the Whiteboard still hasn't picked up the registration
+     */
     private void logFinalRegistrationOutcome(String contextPath) {
         long deadline = System.currentTimeMillis() + REREGISTER_CONFIRM_TIMEOUT_MILLIS;
         while (!isPickedUpByWhiteboard(contextPath) && System.currentTimeMillis() < deadline) {
@@ -314,13 +331,14 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
         }
         if (isPickedUpByWhiteboard(contextPath)) {
             logger.info("Whiteboard picked up the re-registered servlet for {}", contextPath);
-        } else {
-            logger.warn(
-                    "Whiteboard still hasn't picked up the servlet registration for {} after re-registering -- "
-                            + "the UPnP callback may not be reachable until the Whiteboard implementation catches up",
-                    contextPath);
-            logRegistrationDiagnostics(contextPath);
+            return;
         }
+        logger.warn("Whiteboard still hasn't picked up the servlet registration for {} after re-registering -- "
+                + "failing initialization", contextPath);
+        logRegistrationDiagnostics(contextPath);
+        unregisterServletAndContext();
+        throw new InitializationException("Whiteboard never picked up the UPnP callback servlet registration for "
+                + contextPath + " -- see the Whiteboard diagnostics logged above");
     }
 
     /**
@@ -383,6 +401,10 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
 
     @Override
     public synchronized void stopIfRunning() {
+        unregisterServletAndContext();
+    }
+
+    private void unregisterServletAndContext() {
         if (registration != null) {
             registration.unregister();
             registration = null;
