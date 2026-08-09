@@ -28,11 +28,13 @@ import java.util.concurrent.ExecutorService;
 import org.jupnp.transport.impl.servlet.jakarta.ServletContainerAdapter;
 import org.jupnp.transport.spi.InitializationException;
 import org.osgi.framework.BundleContext;
+import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceReference;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.servlet.context.ServletContextHelper;
 import org.osgi.service.servlet.runtime.HttpServiceRuntime;
 import org.osgi.service.servlet.runtime.HttpServiceRuntimeConstants;
+import org.osgi.service.servlet.runtime.dto.FailedServletContextDTO;
 import org.osgi.service.servlet.runtime.dto.FailedServletDTO;
 import org.osgi.service.servlet.runtime.dto.RuntimeDTO;
 import org.osgi.service.servlet.runtime.dto.ServletContextDTO;
@@ -284,7 +286,8 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
      *
      * @throws InitializationException if the Whiteboard still hasn't picked up the registration after the
      *             re-register and {@link #REREGISTER_CONFIRM_TIMEOUT_MILLIS} grace period -- see
-     *             {@link #logFinalRegistrationOutcome}
+     *             {@link #logFinalRegistrationOutcome} -- or if interrupted while waiting: an unconfirmed
+     *             registration must not be allowed to look like success just because the wait was cut short
      */
     private void confirmWhiteboardPickedUpRegistration(String contextPath, Dictionary<String, Object> props,
             Servlet servlet) {
@@ -294,7 +297,11 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
                 Thread.sleep(REGISTRATION_CONFIRM_POLL_MILLIS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return;
+                unregisterServletAndContext();
+                throw new InitializationException(
+                        "Interrupted while waiting for the Whiteboard to pick up the servlet registration for "
+                                + contextPath,
+                        e);
             }
         }
         if (!isPickedUpByWhiteboard(contextPath)) {
@@ -317,7 +324,8 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
      * (e.g. the router restarting this stream server) doesn't find {@link #registration} already non-null and
      * silently skip re-registering in {@link #registerServlet}.
      *
-     * @throws InitializationException if the Whiteboard still hasn't picked up the registration
+     * @throws InitializationException if the Whiteboard still hasn't picked up the registration, or if
+     *             interrupted while waiting -- see {@link #confirmWhiteboardPickedUpRegistration}
      */
     private void logFinalRegistrationOutcome(String contextPath) {
         long deadline = System.currentTimeMillis() + REREGISTER_CONFIRM_TIMEOUT_MILLIS;
@@ -326,7 +334,11 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
                 Thread.sleep(REGISTRATION_CONFIRM_POLL_MILLIS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return;
+                unregisterServletAndContext();
+                throw new InitializationException(
+                        "Interrupted while waiting for the Whiteboard to pick up the re-registered servlet for "
+                                + contextPath,
+                        e);
             }
         }
         if (isPickedUpByWhiteboard(contextPath)) {
@@ -345,8 +357,19 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
      * Dumps the Whiteboard's own view of what happened to the registration when
      * {@link #logFinalRegistrationOutcome} gives up: {@code calculateRequestInfoDTO} only tells us the servlet
      * wasn't matched, not why -- a pattern conflict with another webapp, a missing default context, or similar
-     * is reported by the Whiteboard as a {@code FailedServletDTO} instead, which this surfaces explicitly so a
-     * deployment-specific conflict doesn't look identical to a merely slow Whiteboard.
+     * is reported by the Whiteboard as a {@code FailedServletDTO} (or, if the dedicated
+     * {@link ServletContextHelper} itself was the one rejected, a {@code FailedServletContextDTO}) instead,
+     * which this surfaces explicitly so a deployment-specific conflict doesn't look identical to a merely slow
+     * Whiteboard.
+     * <p>
+     * Correlated by {@code service.id} rather than by pattern/path: the servlet's own registered pattern is
+     * just {@code "/*"} (see {@link #registerServlet}), relative to the dedicated context rather than an
+     * absolute {@code contextPath}-prefixed pattern, so a failed registration for this servlet wouldn't have a
+     * pattern starting with {@code contextPath} to match against. The context's own {@code service.id} is
+     * checked separately (matched with the context's own {@code service.id} property first, its
+     * {@link #CONTEXT_NAME} as a fallback) since a context failing to register is a distinct failure mode from
+     * its servlet failing.
+     * </p>
      */
     private void logRegistrationDiagnostics(String contextPath) {
         ServiceReference<HttpServiceRuntime> reference = context.getServiceReference(HttpServiceRuntime.class);
@@ -361,12 +384,23 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
         }
         try {
             RuntimeDTO runtimeDTO = runtime.getRuntimeDTO();
+            Long servletServiceId = serviceId(registration);
             for (FailedServletDTO failed : runtimeDTO.failedServletDTOs) {
-                for (String pattern : failed.patterns) {
-                    if (pattern.startsWith(contextPath)) {
-                        logger.warn("Whiteboard reports {} as a FAILED registration, reason code {}", contextPath,
-                                failed.failureReason);
-                    }
+                if (servletServiceId != null && failed.serviceId == servletServiceId) {
+                    logger.warn(
+                            "Whiteboard reports the {} servlet (service.id {}, patterns {}) as a FAILED "
+                                    + "registration, reason code {}",
+                            contextPath, failed.serviceId, Arrays.asList(failed.patterns), failed.failureReason);
+                }
+            }
+            Long contextServiceId = serviceId(contextRegistration);
+            for (FailedServletContextDTO failed : runtimeDTO.failedServletContextDTOs) {
+                if ((contextServiceId != null && failed.serviceId == contextServiceId)
+                        || CONTEXT_NAME.equals(failed.name)) {
+                    logger.warn(
+                            "Whiteboard reports the {} servlet context (name {}, service.id {}) as a FAILED "
+                                    + "registration, reason code {}",
+                            contextPath, failed.name, failed.serviceId, failed.failureReason);
                 }
             }
             StringBuilder contexts = new StringBuilder();
@@ -377,6 +411,21 @@ public class JakartaHttpServiceServletContainerAdapter implements ServletContain
         } finally {
             context.ungetService(reference);
         }
+    }
+
+    /**
+     * @return the {@code service.id} of {@code registration}'s underlying service, or {@code null} if
+     *         {@code registration} is itself {@code null} -- lets {@link #logRegistrationDiagnostics} correlate
+     *         a {@code FailedServletDTO}/{@code FailedServletContextDTO} back to the specific service this
+     *         adapter registered, rather than matching on a pattern or path that may not even be present on the
+     *         failed DTO.
+     */
+    private static Long serviceId(ServiceRegistration<?> registration) {
+        if (registration == null) {
+            return null;
+        }
+        Object value = registration.getReference().getProperty(Constants.SERVICE_ID);
+        return value instanceof Long id ? id : null;
     }
 
     private boolean isPickedUpByWhiteboard(String contextPath) {
