@@ -21,8 +21,8 @@
          (8.0.25) used by org.jupnp.osgi.tests: the two can't share a property/BOM entry since they're
          different major versions of the same groupId:artifactId coordinates. Matches the version
          openhab-core#5479 (Jetty 12/Jakarta EE 10 migration) settled on. -->
-    <pax.web.jakarta.version>11.1.2</pax.web.jakarta.version>
-    <pax.logging.jetty12.version>2.2.7</pax.logging.jetty12.version>
+    <pax.web.jakarta.version>11.1.3</pax.web.jakarta.version>
+    <pax.logging.jetty12.version>2.3.5</pax.logging.jetty12.version>
   </properties>
 
   <dependencies>
