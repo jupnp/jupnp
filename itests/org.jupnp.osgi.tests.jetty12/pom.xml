@@ -17,7 +17,7 @@
   <properties>
     <basedirRoot>../..</basedirRoot>
     <maven.compiler.release>17</maven.compiler.release>
-    <pax.logging.jetty12.version>2.2.7</pax.logging.jetty12.version>
+    <pax.logging.jetty12.version>2.3.5</pax.logging.jetty12.version>
   </properties>
 
   <dependencies>
