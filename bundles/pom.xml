@@ -20,8 +20,8 @@
     <module>org.jupnp.android</module>
     <module>org.jupnp.osgi</module>
     <module>org.jupnp.support</module>
-    <module>org.jupnp.transport.servlet</module>
-    <module>org.jupnp.transport.httpservice</module>
+    <module>org.jupnp.transport.javax.httpservice</module>
+    <module>org.jupnp.transport.javax.servlet</module>
     <module>org.jupnp.transport.jetty9</module>
   </modules>
 
@@ -126,9 +126,9 @@
         <jdk>[17,)</jdk>
       </activation>
       <modules>
-        <module>org.jupnp.transport.jetty12</module>
-        <module>org.jupnp.transport.jakarta.servlet</module>
         <module>org.jupnp.transport.jakarta.httpservice</module>
+        <module>org.jupnp.transport.jakarta.servlet</module>
+        <module>org.jupnp.transport.jetty12</module>
       </modules>
     </profile>
   </profiles>

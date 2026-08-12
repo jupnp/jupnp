@@ -19,8 +19,8 @@ package org.jupnp.http;
  * {@code String}-based device-detection helpers used by {@link org.jupnp.model.profile.RemoteClientInfo},
  * independent of any particular transport implementation. The {@code javax.servlet.http.HttpServletRequest}-based
  * counterparts and debug-logging utilities that used to live here moved to
- * {@code org.jupnp.transport.impl.servlet.ServletRequestInfo} in the optional
- * {@code org.jupnp.transport.servlet} bundle (not {@code org.jupnp.http}: that package name is already taken by
+ * {@code org.jupnp.transport.javax.servlet.ServletRequestInfo} in the optional
+ * {@code org.jupnp.transport.javax.servlet} bundle (not {@code org.jupnp.http}: that package name is already taken by
  * this class, and OSGi doesn't support one package split across two bundles' exports). Nothing in core needs
  * them, and keeping them here would have made core depend on javax.servlet for no reason.
  *

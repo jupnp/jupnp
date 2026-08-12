@@ -24,11 +24,11 @@ import org.jupnp.model.Namespace;
 import org.jupnp.model.ServerClientTokens;
 import org.jupnp.transport.impl.GENAEventProcessorImpl;
 import org.jupnp.transport.impl.SOAPActionProcessorImpl;
-import org.jupnp.transport.impl.jetty.JettyServletContainer;
-import org.jupnp.transport.impl.jetty.JettyStreamClientImpl;
-import org.jupnp.transport.impl.jetty.StreamClientConfigurationImpl;
-import org.jupnp.transport.impl.servlet.ServletStreamServerConfigurationImpl;
-import org.jupnp.transport.impl.servlet.ServletStreamServerImpl;
+import org.jupnp.transport.javax.servlet.ServletStreamServerConfigurationImpl;
+import org.jupnp.transport.javax.servlet.ServletStreamServerImpl;
+import org.jupnp.transport.jetty9.Jetty9ServletContainer;
+import org.jupnp.transport.jetty9.Jetty9StreamClientConfigurationImpl;
+import org.jupnp.transport.jetty9.Jetty9StreamClientImpl;
 import org.jupnp.transport.spi.GENAEventProcessor;
 import org.jupnp.transport.spi.NetworkAddressFactory;
 import org.jupnp.transport.spi.SOAPActionProcessor;
@@ -40,7 +40,7 @@ import android.os.Build;
 /**
  * Configuration settings for deployment on Android.
  * <p>
- * This configuration utilizes the Jetty transport implementation found in <code>org.jupnp.transport.impl.jetty</code>
+ * This configuration utilizes the Jetty transport implementation found in <code>org.jupnp.transport.jetty9</code>
  * for TCP/HTTP networking, as client and server. The servlet context path for UPnP is set to <code>/upnp</code>.
  * </p>
  * <p>
@@ -80,7 +80,7 @@ public class AndroidUpnpServiceConfiguration extends DefaultUpnpServiceConfigura
     @Override
     public StreamClient createStreamClient() {
         // Use Jetty
-        return new JettyStreamClientImpl(new StreamClientConfigurationImpl(getSyncProtocolExecutorService()) {
+        return new Jetty9StreamClientImpl(new Jetty9StreamClientConfigurationImpl(getSyncProtocolExecutorService()) {
             @Override
             public String getUserAgentValue(int majorVersion, int minorVersion) {
                 // TODO: UPNP VIOLATION: Synology NAS requires User-Agent to contain
@@ -96,8 +96,8 @@ public class AndroidUpnpServiceConfiguration extends DefaultUpnpServiceConfigura
 
     @Override
     public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory) {
-        // Use Jetty, start/stop a new shared instance of JettyServletContainer
-        return new ServletStreamServerImpl(new ServletStreamServerConfigurationImpl(JettyServletContainer.INSTANCE,
+        // Use Jetty, start/stop a new shared instance of Jetty9ServletContainer
+        return new ServletStreamServerImpl(new ServletStreamServerConfigurationImpl(Jetty9ServletContainer.INSTANCE,
                 networkAddressFactory.getStreamListenPort()));
     }
 

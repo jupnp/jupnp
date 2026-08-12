@@ -27,7 +27,7 @@
       <scope>compile</scope>
     </dependency>
     <!--
-      jakarta.servlet-based counterpart of org.jupnp.transport.servlet (which stays on javax.servlet):
+      jakarta.servlet-based counterpart of org.jupnp.transport.javax.servlet (which stays on javax.servlet):
       the two namespaces are source-incompatible, so this is a separate package/bundle rather than a
       shared one, for org.jupnp.transport.jakarta.httpservice's bridge to the OSGi HTTP Whiteboard
       Service for Jakarta Servlet (Compendium R8, org.osgi.service.servlet). Compile scope: this

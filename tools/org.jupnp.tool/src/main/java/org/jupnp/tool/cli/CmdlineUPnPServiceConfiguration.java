@@ -24,8 +24,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.jupnp.DefaultUpnpServiceConfiguration;
 import org.jupnp.transport.TransportConfiguration;
 import org.jupnp.transport.impl.NetworkAddressFactoryImpl;
-import org.jupnp.transport.impl.jetty.JettyTransportConfiguration;
-import org.jupnp.transport.impl.jetty.StreamClientConfigurationImpl;
+import org.jupnp.transport.jetty9.Jetty9StreamClientConfigurationImpl;
+import org.jupnp.transport.jetty9.Jetty9TransportConfiguration;
 import org.jupnp.transport.spi.NetworkAddressFactory;
 import org.jupnp.transport.spi.StreamClient;
 import org.jupnp.transport.spi.StreamClientConfiguration;
@@ -80,8 +80,8 @@ public class CmdlineUPnPServiceConfiguration extends DefaultUpnpServiceConfigura
         super();
         createExecutorServices();
 
-        configuration = new StreamClientConfigurationImpl(mainExecutorService);
-        transportConfiguration = new JettyTransportConfiguration();
+        configuration = new Jetty9StreamClientConfigurationImpl(mainExecutorService);
+        transportConfiguration = new Jetty9TransportConfiguration();
     }
 
     /**

@@ -20,7 +20,7 @@ import org.jupnp.transport.TransportConfiguration;
 /**
  * Optional OSGi service: implement this to let {@link org.jupnp.OSGiUpnpServiceConfiguration} serve UPnP
  * requests through an existing shared HTTP server (e.g. the classic OSGi HttpService, via
- * {@code org.jupnp.transport.httpservice}) instead of a transport's own standalone {@link StreamServer}.
+ * {@code org.jupnp.transport.javax.httpservice}) instead of a transport's own standalone {@link StreamServer}.
  * <p>
  * Core has no built-in implementation of this interface and no compile-time dependency on any particular
  * shared-server technology (javax.servlet, HttpService, or otherwise); it is provided entirely by optional
