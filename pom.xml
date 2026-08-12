@@ -238,7 +238,9 @@
               <artifact>itests</artifact>
               <artifact>org.jupnp.common</artifact>
               <artifact>org.jupnp.device.simple</artifact>
-              <artifact>org.jupnp.osgi.tests</artifact>
+              <artifact>org.jupnp.osgi.tests.jetty9</artifact>
+              <artifact>org.jupnp.osgi.tests.jetty12</artifact>
+              <artifact>org.jupnp.osgi.tests.jetty12.jakarta</artifact>
             </excludeArtifacts>
           </configuration>
         </plugin>

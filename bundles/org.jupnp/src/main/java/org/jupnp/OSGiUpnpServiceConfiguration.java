@@ -259,7 +259,7 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
 
     /**
      * A {@link SharedStreamServerProvider} is entirely optional: on runtimes that don't have one registered
-     * (e.g. because no optional bundle such as <code>org.jupnp.transport.httpservice</code> is installed, or it
+     * (e.g. because no optional bundle such as <code>org.jupnp.transport.javax.httpservice</code> is installed, or it
      * is installed but its own dependency -- the classic OSGi HttpService -- isn't available, as on pax-web 10
      * and newer, which dropped it in favor of the Jakarta Servlet Whiteboard), UPnP requests are served by the
      * standalone stream server of the discovered transport instead of a shared HTTP server. The greedy policy
@@ -330,7 +330,7 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
         List<SharedStreamServerProvider> providers = new ArrayList<>(sharedStreamServerProviders);
         if (providers.size() > 1) {
             throw new InitializationException("Multiple shared stream server providers found: " + providers + ". "
-                    + "Make sure at most one shared-server bundle (e.g. org.jupnp.transport.httpservice) is "
+                    + "Make sure at most one shared-server bundle (e.g. org.jupnp.transport.javax.httpservice) is "
                     + "installed.");
         }
         if (!providers.isEmpty()) {

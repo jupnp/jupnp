@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.jupnp.pom</groupId>
+    <artifactId>bundles</artifactId>
+    <version>4.0.0-SNAPSHOT</version>
+  </parent>
+
+  <groupId>org.jupnp</groupId>
+  <artifactId>org.jupnp.transport.javax.servlet</artifactId>
+
+  <name>jUPnP javax.servlet Transport Support</name>
+
+  <properties>
+    <basedirRoot>../..</basedirRoot>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.jupnp</groupId>
+      <artifactId>org.jupnp</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
+    <!--
+      Generic javax.servlet-based transport infrastructure (ServletStreamServerImpl, the blocking/async
+      servlet variants, ServletContainerAdapter): shared by org.jupnp.transport.jetty9 and org.jupnp.android,
+      neither of which is Jetty- or Android-specific about it, plus org.jupnp.transport.javax.httpservice's
+      bridge to the classic OSGi HttpService. Compile scope, unlike core's former "provided" dependency on
+      this same artifact: this bundle's whole purpose is servlet support, so it should propagate to consumers.
+    -->
+    <dependency>
+      <groupId>javax.servlet</groupId>
+      <artifactId>javax.servlet-api</artifactId>
+      <version>${servlet.api.version}</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>${slf4j.version}</version>
+      <scope>compile</scope>
+    </dependency>
+  </dependencies>
+
+</project>

@@ -41,7 +41,7 @@ import org.osgi.service.cm.ConfigurationAdmin;
  * synthetic stand-in like {@link TransportDiscoveryComponent} -- with no <code>javax.servlet</code>,
  * <code>javax.servlet.http</code>, or classic <code>org.osgi.service.http.HttpService</code> implementation
  * present on this run's class path (see itest.bndrun's <code>-runbundles</code>): core has no compile-time
- * dependency on any of them at all, and the optional {@code org.jupnp.transport.httpservice} bridge bundle
+ * dependency on any of them at all, and the optional {@code org.jupnp.transport.javax.httpservice} bridge bundle
  * that would otherwise provide a {@link org.jupnp.transport.spi.SharedStreamServerProvider} for them isn't
  * installed in this run.
  * <p>

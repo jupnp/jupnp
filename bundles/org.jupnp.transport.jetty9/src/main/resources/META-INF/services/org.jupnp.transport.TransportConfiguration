@@ -1,1 +1,1 @@
-org.jupnp.transport.impl.jetty.JettyTransportConfiguration
+org.jupnp.transport.jetty9.Jetty9TransportConfiguration

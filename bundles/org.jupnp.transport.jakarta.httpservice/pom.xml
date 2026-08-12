@@ -42,7 +42,7 @@
       This is what a Whiteboard-implementing runtime (e.g. Pax Web 11+) tracks servlet registrations
       through: there is no more registerServlet()-style call, just an OSGi service with these
       properties, unlike the classic HttpService this bridge's javax.servlet sibling
-      (org.jupnp.transport.httpservice) uses.
+      (org.jupnp.transport.javax.httpservice) uses.
     -->
     <dependency>
       <groupId>org.osgi</groupId>

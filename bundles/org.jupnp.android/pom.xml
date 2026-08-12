@@ -34,7 +34,7 @@
     <!-- For ServletStreamServerImpl/ServletStreamServerConfigurationImpl, which core no longer bundles. -->
     <dependency>
       <groupId>org.jupnp</groupId>
-      <artifactId>org.jupnp.transport.servlet</artifactId>
+      <artifactId>org.jupnp.transport.javax.servlet</artifactId>
       <version>${project.version}</version>
       <scope>compile</scope>
     </dependency>

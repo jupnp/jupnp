@@ -2,8 +2,8 @@
 
 # Used by HttpExchangeUpnpStream, an alternative to the servlet-based transports built on the JDK's own
 # com.sun.net.httpserver; not every JVM/OSGi framework exports it, so it stays optional. Core no longer
-# references javax.servlet or org.osgi.service.http at all -- see org.jupnp.transport.servlet and
-# org.jupnp.transport.httpservice, which took over the former optional HttpService-sharing fallback in
+# references javax.servlet or org.osgi.service.http at all -- see org.jupnp.transport.javax.servlet and
+# org.jupnp.transport.javax.httpservice, which took over the former optional HttpService-sharing fallback in
 # OSGiUpnpServiceConfiguration via the generic SharedStreamServerProvider SPI instead.
 Import-Package: com.sun.net.httpserver;resolution:=optional,\
  *
