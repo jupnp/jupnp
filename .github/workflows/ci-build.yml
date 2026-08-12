@@ -16,6 +16,9 @@ on:
 permissions:
   contents: read
 
+env:
+  MAVEN_OPTS: -Xmx2g -Dmaven.wagon.http.retryHandler.count=5 -Dmaven.wagon.httpconnectionManager.ttlSeconds=25
+
 jobs:
   build:
     strategy:
@@ -50,13 +53,7 @@ jobs:
           cache: 'maven'
 
       - name: Build
-        run: ${{ matrix.maven_command || './mvnw' }} clean verify -B -U
-        env:
-          MAVEN_OPTS: >-
-            -Xmx2g
-            -Dmaven.wagon.http.retryHandler.count=5
-            -Dmaven.wagon.httpconnectionManager.ttlSeconds=25
-            -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
+        run: ${{ matrix.maven_command || './mvnw' }} -B -ntp -U clean verify
 
       - name: Verify Changed Files
         id: verify-changed-files
@@ -73,3 +70,31 @@ jobs:
         run: |
           echo "::error::Files have changed: $CHANGED_FILES"
           exit 1
+
+  publish-snapshot:
+    name: Publish snapshot
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 11 and Maven Central credentials
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '11'
+          cache: maven
+          server-id: central
+          server-username: CENTRAL_USERNAME
+          server-password: CENTRAL_PASSWORD
+
+      - name: Publish snapshot
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+        run: ./mvnw -B -ntp clean deploy -DskipTests
