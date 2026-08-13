@@ -325,6 +325,16 @@
 
   <profiles>
     <profile>
+      <id>bnd-java17-plus</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <properties>
+        <bnd.version>7.3.0</bnd.version>
+      </properties>
+    </profile>
+
+    <profile>
       <id>bnd-specific-profile</id>
       <activation>
         <file>
