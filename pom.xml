@@ -56,6 +56,7 @@
   <properties>
     <basedirRoot>.</basedirRoot>
     <bndFile>${basedirRoot}/bnd.bnd</bndFile>
+    <bnd.testing.resolve>true</bnd.testing.resolve>
     <maven.compiler.release>11</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
@@ -127,6 +128,10 @@
           <groupId>biz.aQute.bnd</groupId>
           <artifactId>bnd-testing-maven-plugin</artifactId>
           <version>${bnd.version}</version>
+          <configuration>
+            <resolve>${bnd.testing.resolve}</resolve>
+            <failOnChanges>false</failOnChanges>
+          </configuration>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -330,6 +335,7 @@
         <jdk>[17,)</jdk>
       </activation>
       <properties>
+        <bnd.testing.resolve>false</bnd.testing.resolve>
         <bnd.version>7.3.0</bnd.version>
       </properties>
     </profile>
