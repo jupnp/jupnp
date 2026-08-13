@@ -56,7 +56,6 @@
   <properties>
     <basedirRoot>.</basedirRoot>
     <bndFile>${basedirRoot}/bnd.bnd</bndFile>
-    <bnd.testing.resolve>true</bnd.testing.resolve>
     <maven.compiler.release>11</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
@@ -70,6 +69,9 @@
     <servlet.api.version>3.1.0</servlet.api.version>
     <slf4j.version>2.0.11</slf4j.version>
     <osgi.version>7.0.0</osgi.version>
+
+    <bnd.testing.runee>JavaSE-11</bnd.testing.runee>
+    <bnd.testing.resolve>true</bnd.testing.resolve>
 
     <spotless.version>2.44.3</spotless.version>
     <!-- Eclipse Java formatter version 4.26+ does not check test files -->
@@ -335,6 +337,7 @@
         <jdk>[17,)</jdk>
       </activation>
       <properties>
+        <bnd.testing.runee>JavaSE-17</bnd.testing.runee>
         <bnd.testing.resolve>false</bnd.testing.resolve>
         <bnd.version>7.3.0</bnd.version>
       </properties>
