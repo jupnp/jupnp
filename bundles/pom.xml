@@ -126,8 +126,8 @@
         <jdk>[17,)</jdk>
       </activation>
       <modules>
-        <module>org.jupnp.transport.jakarta.httpservice</module>
         <module>org.jupnp.transport.jakarta.servlet</module>
+        <module>org.jupnp.transport.jakarta.whiteboard</module>
         <module>org.jupnp.transport.jetty12</module>
       </modules>
     </profile>

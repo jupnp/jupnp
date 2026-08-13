@@ -56,7 +56,7 @@
       </activation>
       <modules>
         <module>org.jupnp.osgi.tests.jetty12</module>
-        <module>org.jupnp.osgi.tests.jetty12.jakarta</module>
+        <module>org.jupnp.osgi.tests.jetty12.jakarta.whiteboard</module>
       </modules>
     </profile>
 
