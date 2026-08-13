@@ -60,12 +60,12 @@
       </dependency>
       <dependency>
         <groupId>org.jupnp</groupId>
-        <artifactId>org.jupnp.transport.jakarta.httpservice</artifactId>
+        <artifactId>org.jupnp.transport.jakarta.servlet</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.jupnp</groupId>
-        <artifactId>org.jupnp.transport.jakarta.servlet</artifactId>
+        <artifactId>org.jupnp.transport.jakarta.whiteboard</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

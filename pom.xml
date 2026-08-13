@@ -240,7 +240,7 @@
               <artifact>org.jupnp.device.simple</artifact>
               <artifact>org.jupnp.osgi.tests.jetty9</artifact>
               <artifact>org.jupnp.osgi.tests.jetty12</artifact>
-              <artifact>org.jupnp.osgi.tests.jetty12.jakarta</artifact>
+              <artifact>org.jupnp.osgi.tests.jetty12.jakarta.whiteboard</artifact>
             </excludeArtifacts>
           </configuration>
         </plugin>
