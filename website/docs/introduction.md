@@ -21,7 +21,7 @@ The build infrastructure is based on Maven and includes the Maven Wrapper,
 so you do not need to install Maven separately.
 
 What you need before you start:
-- Java SDK 11 (please note that the build does NOT work with any higher version!)
+- Java SDK 11 or newer
 
 ### Checkout
 

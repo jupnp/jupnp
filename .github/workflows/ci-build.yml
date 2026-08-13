@@ -24,10 +24,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [ '11' ]
-        os: [ 'macos-26', 'ubuntu-24.04', 'windows-2025' ]
+        java: [ '11', '17', '21', '25', '26' ]
+        os: [ 'ubuntu-24.04' ]
         include:
-          - os: windows-2025
+          - java: '11'
+            os: 'macos-26'
+          - java: '11'
+            os: 'windows-2025'
             maven_command: .\mvnw.cmd
 
     name: Build (Java ${{ matrix.java }}, ${{ matrix.os }})
@@ -83,11 +86,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Java 11 and Maven Central credentials
+      - name: Set up Java 17 and Maven Central credentials
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: '17'
           cache: maven
           server-id: central
           server-username: CENTRAL_USERNAME
