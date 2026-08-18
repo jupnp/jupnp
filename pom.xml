@@ -339,7 +339,7 @@
       <properties>
         <bnd.testing.runee>JavaSE-17</bnd.testing.runee>
         <bnd.testing.resolve>false</bnd.testing.resolve>
-        <bnd.version>7.3.0</bnd.version>
+        <bnd.version>7.4.0</bnd.version>
       </properties>
     </profile>
 

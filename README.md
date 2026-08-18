@@ -32,8 +32,7 @@ You can usually install a JDK using your operating system's package manager, for
 - RHEL/Fedora: `java-21-openjdk-devel`
 
 Package names may differ depending on the Java version and distribution.
-If a suitable JDK is not available from your operating system, you can use
-[Eclipse Temurin](https://adoptium.net/temurin/releases/), which is also used by the CI builds.
+If a suitable JDK is not available from your operating system, you can use [Eclipse Temurin](https://adoptium.net/temurin/releases/), which is also used by the CI builds.
 
 ### Checkout
 
