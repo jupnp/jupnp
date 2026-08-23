@@ -70,6 +70,9 @@
     <slf4j.version>2.0.11</slf4j.version>
     <osgi.version>7.0.0</osgi.version>
 
+    <bnd.testing.runee>JavaSE-11</bnd.testing.runee>
+    <bnd.testing.resolve>true</bnd.testing.resolve>
+
     <spotless.version>2.44.3</spotless.version>
     <!-- Eclipse Java formatter version 4.26+ does not check test files -->
     <spotless.eclipse.version>4.25</spotless.eclipse.version>
@@ -127,6 +130,10 @@
           <groupId>biz.aQute.bnd</groupId>
           <artifactId>bnd-testing-maven-plugin</artifactId>
           <version>${bnd.version}</version>
+          <configuration>
+            <resolve>${bnd.testing.resolve}</resolve>
+            <failOnChanges>false</failOnChanges>
+          </configuration>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -324,6 +331,18 @@
   </build>
 
   <profiles>
+    <profile>
+      <id>bnd-java17-plus</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <properties>
+        <bnd.testing.runee>JavaSE-17</bnd.testing.runee>
+        <bnd.testing.resolve>false</bnd.testing.resolve>
+        <bnd.version>7.4.0</bnd.version>
+      </properties>
+    </profile>
+
     <profile>
       <id>bnd-specific-profile</id>
       <activation>
