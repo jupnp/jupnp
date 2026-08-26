@@ -37,11 +37,6 @@
 	org.jupnp.device.simple;version='[4.0.0,4.0.1)',\
 	org.jupnp.osgi;version='[4.0.0,4.0.1)',\
 	org.jupnp.osgi.tests.jetty9;version='[4.0.0,4.0.1)',\
-	org.objectweb.asm;version='[9.6.0,9.6.1)',\
-	org.objectweb.asm.commons;version='[9.6.0,9.6.1)',\
-	org.objectweb.asm.tree;version='[9.6.0,9.6.1)',\
-	org.objectweb.asm.tree.analysis;version='[9.6.0,9.6.1)',\
-	org.objectweb.asm.util;version='[9.6.0,9.6.1)',\
 	org.jupnp.transport.jetty9;version='[4.0.0,4.0.1)',\
 	org.jupnp.transport.javax.servlet;version='[4.0.0,4.0.1)',\
 	org.eclipse.jetty.client;version='[9.4.58,9.4.59)',\
@@ -59,4 +54,9 @@
 	org.ops4j.pax.web.pax-web-jetty;version='[8.0.36,8.0.37)',\
 	org.ops4j.pax.web.pax-web-runtime;version='[8.0.36,8.0.37)',\
 	org.ops4j.pax.web.pax-web-spi;version='[8.0.36,8.0.37)',\
-	org.ops4j.pax.web.pax-web-tomcat-common;version='[8.0.36,8.0.37)'
+	org.ops4j.pax.web.pax-web-tomcat-common;version='[8.0.36,8.0.37)',\
+	org.objectweb.asm;version='[9.10.1,9.10.2)',\
+	org.objectweb.asm.commons;version='[9.10.1,9.10.2)',\
+	org.objectweb.asm.tree;version='[9.10.1,9.10.2)',\
+	org.objectweb.asm.tree.analysis;version='[9.10.1,9.10.2)',\
+	org.objectweb.asm.util;version='[9.10.1,9.10.2)'
