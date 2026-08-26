@@ -27,6 +27,40 @@
     <maven.javadoc.skip>true</maven.javadoc.skip>
   </properties>
 
+  <!-- org.apache.aries.spifly.dynamic.bundle:1.3.7 (used by the OSGi itests) transitively pulls
+       ASM 9.6, whose bundled class file parser doesn't recognize Java 25/26 (major versions 69/70)
+       and throws when spifly's WeavingHook processes a JVM-synthesized lambda proxy class. Pin the
+       whole ASM family to a version new enough to parse those class files. -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm</artifactId>
+        <version>9.10.1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm-commons</artifactId>
+        <version>9.10.1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm-tree</artifactId>
+        <version>9.10.1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm-analysis</artifactId>
+        <version>9.10.1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.ow2.asm</groupId>
+        <artifactId>asm-util</artifactId>
+        <version>9.10.1</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
     <dependency>
       <groupId>org.jupnp.bom</groupId>
