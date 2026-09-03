@@ -172,7 +172,7 @@ public class PortMappingListener extends DefaultRegistryListener {
     }
 
     protected Service<?, ?> discoverConnectionService(Device<?, ?, ?> device) {
-        if (!device.getType().equals(IGD_DEVICE_TYPE)) {
+        if (!device.getType().implementsVersion(IGD_DEVICE_TYPE)) {
             return null;
         }
 

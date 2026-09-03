@@ -17,16 +17,18 @@ Building and running the project is fairly easy if you follow the steps detailed
 
 ### Prerequisites
 
-The build infrastructure is based on Maven in order to make it
-as easy as possible to get up to speed. If you know Maven already then
-there won't be any surprises for you. If you have not worked with Maven
-yet, just follow the instructions and everything will miraculously work ;-)
+The build infrastructure is based on Maven and includes the Maven Wrapper,
+so you do not need to install Maven separately.
 
 What you need before you start:
-- Java SDK 11 (please note that the build does NOT work with any higher version!)
-- Maven 3 from https://maven.apache.org/download.html
+- Java Development Kit (JDK) 11 or newer
 
-Make sure that the "mvn" command is available on your path
+You can usually install a JDK using your operating system's package manager, for example:
+- Debian/Ubuntu: `openjdk-21-jdk`
+- RHEL/Fedora: `java-21-openjdk-devel`
+
+Package names may differ depending on the Java version and distribution.
+If a suitable JDK is not available from your operating system, you can use [Eclipse Temurin](https://adoptium.net/temurin/releases/), which is also used by the CI builds.
 
 ### Checkout
 
@@ -40,8 +42,11 @@ git clone https://github.com/jupnp/jupnp.git
 
 To build jUPnP from the sources, Maven takes care of everything:
 - change into the jupnp directory (`cd jupnp`)
-- run `mvn clean install` to compile and package all sources
+- run `./mvnw clean install` to compile and package all sources
 
+On Windows, use `.\mvnw.cmd` instead of `./mvnw`.
+
+The Maven Wrapper downloads the required Maven version automatically.
 The build result will be available in the folder `target`.
 
 To improve build times you can add the following options to the command:
@@ -60,7 +65,7 @@ To improve build times you can add the following options to the command:
 For example you can skip tests and the Spotless checks during development with:
 
 ```shell
-mvn clean install -DskipTests -Dspotless.check.skip=true
+./mvnw clean install -DskipTests -Dspotless.check.skip=true
 ```
 
 Adding these options improves the build time but could hide problems in your code.
@@ -74,13 +79,13 @@ To use this configuration while coding, import the code style configuration into
 To check if your code is following the code style run:
 
 ```shell
-mvn spotless:check
+./mvnw spotless:check
 ```
 
 To reformat your code so it conforms to the code style you can run:
 
 ```shell
-mvn spotless:apply
+./mvnw spotless:apply
 ```
 
 ### Integration tests
@@ -90,7 +95,7 @@ You may need to update these runbundles after creating a new jupnp release or wh
 Maven can resolve the runbundles automatically by executing:
 
 ```shell
-mvn clean install -DwithResolver
+./mvnw clean install -DwithResolver
 ```
 
 ### Working with Eclipse

@@ -33,16 +33,7 @@ const config: Config = {
       removeLegacyPostBuildHeadAttribute: true,
       useCssCascadeLayers: true,
     },
-    experimental_faster: {
-      swcJsLoader: true,
-      swcJsMinimizer: true,
-      swcHtmlMinimizer: true,
-      lightningCssMinimizer: true,
-      rspackBundler: true,
-      rspackPersistentCache: true,
-      mdxCrossCompilerCache: true,
-      ssgWorkerThreads: true,
-    },
+    faster: true,
   },
 
   presets: [

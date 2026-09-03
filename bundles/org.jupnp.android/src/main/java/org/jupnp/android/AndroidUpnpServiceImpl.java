@@ -65,14 +65,19 @@ public class AndroidUpnpServiceImpl extends Service {
             public synchronized void shutdown() {
                 // First have to remove the receiver, so Android won't complain about it leaking
                 // when the main UI thread exits.
-                ((AndroidRouter) getRouter()).unregisterBroadcastReceiver();
+                AndroidRouter router = (AndroidRouter) getRouter();
+                if (router != null) {
+                    router.unregisterBroadcastReceiver();
+                }
 
-                // Now we can concurrently run the Cling shutdown code, without occupying the
+                // Now we can concurrently run the jUPnP shutdown code, without occupying the
                 // Android main UI thread. This will complete probably after the main UI thread
                 // is done.
                 super.shutdown(true);
             }
         };
+
+        upnpService.startup();
     }
 
     protected UpnpServiceConfiguration createConfiguration() {

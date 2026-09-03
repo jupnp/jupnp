@@ -15,6 +15,8 @@
  */
 package org.jupnp.support.igd.callback;
 
+import java.util.Objects;
+
 import org.jupnp.controlpoint.ActionCallback;
 import org.jupnp.controlpoint.ControlPoint;
 import org.jupnp.model.action.ActionInvocation;
@@ -38,7 +40,7 @@ public abstract class PortMappingDelete extends ActionCallback {
 
         this.portMapping = portMapping;
 
-        getActionInvocation().setInput("NewExternalPort", portMapping.getExternalPort());
+        getActionInvocation().setInput("NewExternalPort", Objects.toString(portMapping.getExternalPort(), null));
         getActionInvocation().setInput("NewProtocol", portMapping.getProtocol());
         if (portMapping.hasRemoteHost()) {
             getActionInvocation().setInput("NewRemoteHost", portMapping.getRemoteHost());

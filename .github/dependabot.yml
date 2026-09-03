@@ -14,6 +14,24 @@ updates:
     labels:
       - dependencies
 
+  - package-ecosystem: "npm" # See documentation for possible values
+    directory: "/website" # Location of package manifests
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    groups:
+      docusaurus:
+        patterns:
+          - "@docusaurus/*"
+      website-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
   - package-ecosystem: "maven" # See documentation for possible values
     directory: "/" # Location of package manifests
     schedule:

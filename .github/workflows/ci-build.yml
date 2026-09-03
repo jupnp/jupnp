@@ -13,71 +13,91 @@ on:
       - 'website/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+env:
+  MAVEN_OPTS: -Xmx2g -Dmaven.wagon.http.retryHandler.count=5 -Dmaven.wagon.httpconnectionManager.ttlSeconds=25
+
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        java: [ '11' ]
-        maven: [ '3.9.9' ]
-        os: [ 'macos-15', 'ubuntu-24.04', 'windows-2022' ]
+        java: [ '11', '17', '21', '25', '26' ]
+        os: [ 'ubuntu-24.04' ]
+        include:
+          - java: '11'
+            os: 'macos-26'
+          - java: '11'
+            os: 'windows-2025'
+            maven_command: .\mvnw.cmd
+
     name: Build (Java ${{ matrix.java }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Set up line endings
-        if: ${{ matrix.os == 'windows-2022' }}
+        if: runner.os == 'Windows'
         run: |
           git config --global core.autocrlf false
           git config --global core.eol crlf
 
       - name: Checkout
-        if: github.head_ref == ''
-        uses: actions/checkout@v6
-
-      - name: Checkout merge
-        if: github.head_ref != ''
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
-          ref: refs/pull/${{github.event.pull_request.number}}/merge
-
-      - name: Set up Cache
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+          persist-credentials: false
 
       - name: Set up Java ${{ matrix.java }}
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
-
-      - name: Set up Maven ${{ matrix.maven }}
-        uses: stCarolas/setup-maven@v5
-        with:
-          maven-version: ${{ matrix.maven }}
+          cache: 'maven'
 
       - name: Build
-        id: build
-        run: mvn clean verify -B -U
-        env:
-          MAVEN_OPTS: >-
-            -Xmx2g
-            -Dmaven.wagon.http.retryHandler.count=5
-            -Dmaven.wagon.httpconnectionManager.ttlSeconds=25
-            -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
+        run: ${{ matrix.maven_command || './mvnw' }} -B -ntp -U clean verify
 
       - name: Verify Changed Files
-        uses: tj-actions/verify-changed-files@v20
         id: verify-changed-files
+        shell: bash
+        run: |
+          changed_files=$(echo -n "$(git diff --name-only HEAD && git ls-files --others --exclude-standard)" | tr '\n' ' ')
+          echo "changed_files=$changed_files" >> "$GITHUB_OUTPUT"
 
       - name: Fail on Changed Files
         if: steps.verify-changed-files.outputs.changed_files != ''
+        shell: bash
         env:
           CHANGED_FILES: ${{ steps.verify-changed-files.outputs.changed_files }}
         run: |
           echo "::error::Files have changed: $CHANGED_FILES"
           exit 1
+
+  publish-snapshot:
+    name: Publish snapshot
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 17 and Maven Central credentials
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          server-id: central
+          server-username: CENTRAL_USERNAME
+          server-password: CENTRAL_PASSWORD
+
+      - name: Publish snapshot
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+        run: ./mvnw -B -ntp clean deploy -DskipTests
