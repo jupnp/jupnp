@@ -162,8 +162,8 @@ Not all HTTP client transports in jUPnP support interruption of requests:
 
 | **Transport**                                                          | **Supports Interruption?** |
 |------------------------------------------------------------------------|:--------------------------:|
-| `org.jupnp.transport.impl.StreamClientImpl` (default)                  |             NO             |
-| `org.jupnp.transport.impl.jetty.StreamClientImpl` (default on Android) |             YES            |
+| `org.jupnp.transport.jetty9.Jetty9StreamClientImpl` (Jetty 9.4 transport)  |             YES            |
+| `org.jupnp.transport.jetty12.Jetty12StreamClientImpl` (Jetty 12 transport) |             YES            |
 
 Transports which do not support cancellation won't produce an error when you abort an action invocation, they silently ignore the interruption and continue waiting for the server to respond.
 
@@ -224,8 +224,8 @@ The following jUPnP-bundled client transports can deal with a heartbeat signal:
 
 | Transport                                                              | Accepts Heartbeat? |
 |------------------------------------------------------------------------|:------------------:|
-| `org.jupnp.transport.impl.StreamClientImpl` (default)                  |         NO         |
-| `org.jupnp.transport.impl.jetty.StreamClientImpl` (default on Android) |         YES        |
+| `org.jupnp.transport.jetty9.Jetty9StreamClientImpl` (Jetty 9.4 transport)  |         YES        |
+| `org.jupnp.transport.jetty12.Jetty12StreamClientImpl` (Jetty 12 transport) |         YES        |
 
 Equally important, not all server transports in jUPnP can send heartbeat signals, as low-level socket access is required.
 Some server APIs do not provide this low-level access.
@@ -233,8 +233,8 @@ If you check the connection state with those transports, the connection is alway
 
 | Transport                                                                                                                                | Sends Heartbeat? |
 |------------------------------------------------------------------------------------------------------------------------------------------|:----------------:|
-| `org.jupnp.transport.impl.StreamServerImpl` (default)                                                                                    |        NO        |
-| `org.jupnp.transport.impl.AsyncServletStreamServerImpl` with `org.jupnp.transport.impl.jetty.JettyServletContainer` (default on Android) |        YES       |
+| `org.jupnp.transport.javax.servlet.ServletStreamServerImpl` with `org.jupnp.transport.jetty9.Jetty9ServletContainer` (Jetty 9.4 transport) |        YES       |
+| `org.jupnp.transport.jetty12.Jetty12StreamServerImpl` (Jetty 12 transport)                                                       |        YES       |
 
 In practice, this heartbeat feature is less useful than it sounds in theory: As you usually don't control which HTTP clients will access your server, sending them "garbage" bytes before responding properly will most likely cause interoperability problems.
 
@@ -487,36 +487,24 @@ Note that no announcements will be made for any device with disabled advertising
 jUPnP has to accept and make HTTP requests to implement UPnP discovery, action processing, and GENA eventing.
 This is the job of the `StreamServer` and `StreamClient` implementations, working together with the `Router` as the jUPnP network transport layer.
 
-For the `StreamClient` SPI, the following implementations are bundled with jUPnP:
+The transport implementations are no longer part of the jUPnP core library, they are provided by separate transport artifacts.
+Exactly one transport artifact should be on your classpath, it is discovered automatically by the `TransportConfigurationProvider`.
+The following transport artifacts are available:
 
 <dl>
-    <dt>`org.jupnp.transport.impl.StreamClientImpl` (default)</dt>
+    <dt>`org.jupnp:org.jupnp.transport.jetty9`</dt>
     <dd>
-        This implementation uses the JDK's `HTTPURLConnection`, it doesn't require any additional libraries.
-        Note that jUPnP has to customize (with an ugly hack, really) the VM's `URLStreamHandlerFactory` to support additional HTTP methods such as `NOTIFY`, `SUBSCRIBE`, and `UNSUBSCRIBE`.
-        The designers of the JDK do not understand HTTP very well and made this extremely difficult to extend.
-        jUPnP's patch only works if no other code in your environment has already set a custom `URLStreamHandlerFactory`, you will get an exception on startup if this issue is detected; then you have to switch to another `StreamClient` implementation.
-        Note that this implementation does *NOT WORK* on Android, the `URLStreamHandlerFactory` can't be patched on Android!
+        This implementation is based on the *Jetty 9.4* HTTP client and server (`org.jupnp.transport.jetty9.Jetty9StreamClientImpl`, `org.jupnp.transport.javax.servlet.ServletStreamServerImpl` with `org.jupnp.transport.jetty9.Jetty9ServletContainer`).
+        The server side is based on the standard *Servlet 3.0* API, provided by the separate `org.jupnp:org.jupnp.transport.javax.servlet` artifact (a transitive dependency of this one).
+        It requires a `ServletContainerAdapter` to integrate with the servlet container, the bundled `Jetty9ServletContainer` is such an adapter for a standalone *Jetty 9.4* server.
+        For other containers, write your own adapter and provide it to the `ServletStreamServerConfigurationImpl`.
+        This implementation runs on Java 11 or newer and works in any environment, including Android.
+        It is the transport used by `AndroidUpnpServiceConfiguration`.
     </dd>
-    <dt>`org.jupnp.transport.impl.jetty.JettyStreamClientImpl`</dt>
+    <dt>`org.jupnp:org.jupnp.transport.jetty12`</dt>
     <dd>
-        This implementation is based on the *Jetty 9.4* HTTP client, you need the artifact `org.eclipse.jetty:jetty-client:9.4` on your classpath to use it.
-        This implementation works in any environment, including Android.
-        It is the default transport for `AndroidUpnpServiceConfiguration`.
-    </dd>
-</dl>
-
-For the `StreamServer` SPI, the following implementations are bundled with jUPnP:
-
-<dl>
-    <dt>`org.jupnp.transport.impl.async.AsyncServletStreamServerImpl`</dt>
-    <dd>
-        This implementation is based on the standard *Servlet 3.0* API and can be used in any environment with a compatible servlet container.
-        It requires a `ServletContainerAdapter` to integrate with the servlet container, the bundled `JettyServletContainer` is such an adapter for a standalone *Jetty 9* server.
-        You need the artifact `org.eclipse.jetty:jetty-servlet:9.4` on your classpath to use it.
-        This implementation works in any environment, including Android.
-        It is the default transport for `AndroidUpnpServiceConfiguration`.
-        For other containers, write your own adapter and provide it to the `AsyncServletStreamServerConfigurationImpl`.
+        This implementation is based on the *Jetty 12.1* HTTP client and the Jetty 12 core server API (`org.jupnp.transport.jetty12.Jetty12StreamClientImpl`, `org.jupnp.transport.jetty12.Jetty12StreamServerImpl`), it does not require any servlet API.
+        It requires *Java 17* or newer.
     </dd>
 </dl>
 
@@ -534,18 +522,18 @@ public class MyUpnpServiceConfiguration extends DefaultUpnpServiceConfiguration 
 
     @Override
     public StreamClient createStreamClient() {
-        return new org.jupnp.transport.impl.jetty.StreamClientImpl(
-            new org.jupnp.transport.impl.jetty.JettyStreamClientConfigurationImpl(
-                getSyncProtocolExecutor()
+        return new org.jupnp.transport.jetty9.Jetty9StreamClientImpl(
+            new org.jupnp.transport.jetty9.Jetty9StreamClientConfigurationImpl(
+                getSyncProtocolExecutorService()
             )
         );
     }
 
     @Override
     public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory) {
-        return new org.jupnp.transport.impl.AsyncServletStreamServerImpl(
-            new org.jupnp.transport.impl.AsyncServletStreamServerConfigurationImpl(
-                org.jupnp.transport.impl.jetty.JettyServletContainer.INSTANCE,
+        return new org.jupnp.transport.javax.servlet.ServletStreamServerImpl(
+            new org.jupnp.transport.javax.servlet.ServletStreamServerConfigurationImpl(
+                org.jupnp.transport.jetty9.Jetty9ServletContainer.INSTANCE,
                 networkAddressFactory.getStreamListenPort()
             )
         );
@@ -555,5 +543,5 @@ public class MyUpnpServiceConfiguration extends DefaultUpnpServiceConfiguration 
 ```
 
 The above configuration will use the Jetty client and the Jetty servlet container.
-The `JettyServletContainer.INSTANCE` adapter is managing a standalone singleton server, it is started and stopped when jUPnP starts and stops the UPnP stack.
+The `Jetty9ServletContainer.INSTANCE` adapter is managing a standalone singleton server, it is started and stopped when jUPnP starts and stops the UPnP stack.
 If you have run jUPnP with an existing, external servlet container, provide a custom adapter.

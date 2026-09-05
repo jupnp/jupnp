@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.jupnp.pom</groupId>
+    <artifactId>bundles</artifactId>
+    <version>4.0.0-SNAPSHOT</version>
+  </parent>
+
+  <groupId>org.jupnp</groupId>
+  <artifactId>org.jupnp.transport.jakarta.servlet</artifactId>
+
+  <name>jUPnP Jakarta Servlet Transport Support</name>
+
+  <properties>
+    <basedirRoot>../..</basedirRoot>
+    <maven.compiler.release>17</maven.compiler.release>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.jupnp</groupId>
+      <artifactId>org.jupnp</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
+    <!--
+      jakarta.servlet-based counterpart of org.jupnp.transport.javax.servlet (which stays on javax.servlet):
+      the two namespaces are source-incompatible, so this is a separate package/bundle rather than a
+      shared one, for org.jupnp.transport.jakarta.whiteboard's bridge to the OSGi HTTP Whiteboard
+      Service for Jakarta Servlet (Compendium R8, org.osgi.service.servlet). Compile scope: this
+      bundle's whole purpose is servlet support, so it should propagate to consumers.
+    -->
+    <dependency>
+      <groupId>jakarta.servlet</groupId>
+      <artifactId>jakarta.servlet-api</artifactId>
+      <version>${jakarta.servlet.api.version}</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>${slf4j.version}</version>
+      <scope>compile</scope>
+    </dependency>
+  </dependencies>
+
+</project>

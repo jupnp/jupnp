@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.jupnp.pom</groupId>
+    <artifactId>bundles</artifactId>
+    <version>4.0.0-SNAPSHOT</version>
+  </parent>
+
+  <groupId>org.jupnp</groupId>
+  <artifactId>org.jupnp.transport.javax.httpservice</artifactId>
+
+  <name>jUPnP javax OSGi HttpService Bridge</name>
+
+  <properties>
+    <basedirRoot>../..</basedirRoot>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.jupnp</groupId>
+      <artifactId>org.jupnp</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
+    <!--
+      For ServletStreamServerImpl/ServletContainerAdapter/AsyncServlet: the classic OSGi HttpService only
+      registers javax.servlet Servlets, so bridging to it needs the generic servlet transport support too.
+    -->
+    <dependency>
+      <groupId>org.jupnp</groupId>
+      <artifactId>org.jupnp.transport.javax.servlet</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>${slf4j.version}</version>
+      <scope>compile</scope>
+    </dependency>
+  </dependencies>
+
+</project>

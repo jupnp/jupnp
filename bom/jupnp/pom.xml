@@ -6,7 +6,7 @@
   <parent>
     <groupId>org.jupnp.bom</groupId>
     <artifactId>org.jupnp.bom.parent</artifactId>
-    <version>3.0.6-SNAPSHOT</version>
+    <version>4.0.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>org.jupnp.bom</artifactId>
@@ -18,27 +18,77 @@
     <basedirRoot>../..</basedirRoot>
   </properties>
 
-  <dependencies>
-    <dependency>
-      <groupId>org.jupnp</groupId>
-      <artifactId>org.jupnp</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.jupnp</groupId>
-      <artifactId>org.jupnp.android</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.jupnp</groupId>
-      <artifactId>org.jupnp.osgi</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.jupnp</groupId>
-      <artifactId>org.jupnp.support</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-  </dependencies>
+  <!--
+    A conventional Maven BOM: import this with type=pom, scope=import in a consumer's
+    <dependencyManagement>, then declare exactly the jUPnP artifacts you actually want (no version
+    needed on any of them, since it's managed here) in the consumer's own <dependencies>. Import scope
+    only ever honors a POM's <dependencyManagement>, never its plain <dependencies>, so managing
+    everything here (rather than listing a subset as direct dependencies, as this module used to) is
+    what makes a plain "import this BOM" actually work the way every other Maven BOM does.
+
+    Both org.jupnp.transport.jetty9 and org.jupnp.transport.jetty12 are managed here, side by side,
+    which one to use is still the consumer's explicit choice to declare in their own <dependencies>, not
+    something this BOM decides for them. Managing a Java 17-only artifact like jetty12 (or the
+    jakarta.* bridges) doesn't affect a Java 11 build either way: being managed only supplies a version
+    number if the consumer asks for it, it doesn't add anything to their classpath by itself. If a
+    consumer accidentally declares both transports as direct dependencies, TransportConfigurationProvider
+    (or, in OSGi, OSGiUpnpServiceConfiguration's Declarative Services reference) fails fast on the
+    resulting ambiguity at runtime; that guarantee lives in jUPnP's own discovery code, not in this
+    file, and applies identically regardless of how the versions were supplied.
+  -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.jupnp</groupId>
+        <artifactId>org.jupnp</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jupnp</groupId>
+        <artifactId>org.jupnp.android</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jupnp</groupId>
+        <artifactId>org.jupnp.osgi</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jupnp</groupId>
+        <artifactId>org.jupnp.support</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jupnp</groupId>
+        <artifactId>org.jupnp.transport.jakarta.servlet</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jupnp</groupId>
+        <artifactId>org.jupnp.transport.jakarta.whiteboard</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jupnp</groupId>
+        <artifactId>org.jupnp.transport.javax.httpservice</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jupnp</groupId>
+        <artifactId>org.jupnp.transport.javax.servlet</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jupnp</groupId>
+        <artifactId>org.jupnp.transport.jetty12</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jupnp</groupId>
+        <artifactId>org.jupnp.transport.jetty9</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
 </project>
