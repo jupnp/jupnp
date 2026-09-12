@@ -32,6 +32,10 @@ jobs:
           - java: '11'
             os: 'windows-2025'
             maven_command: .\mvnw.cmd
+          # Additional build with Java 17 to cover the optional Jetty 12 transport
+          # (the Java baseline of the project remains Java 11)
+          - java: '17'
+            os: 'ubuntu-24.04'
 
     name: Build (Java ${{ matrix.java }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}

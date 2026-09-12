@@ -15,7 +15,10 @@
  */
 package org.jupnp;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -32,7 +35,6 @@ import org.jupnp.model.meta.RemoteDeviceIdentity;
 import org.jupnp.model.meta.RemoteService;
 import org.jupnp.model.types.ServiceType;
 import org.jupnp.transport.TransportConfiguration;
-import org.jupnp.transport.TransportConfigurationProvider;
 import org.jupnp.transport.impl.DatagramIOConfigurationImpl;
 import org.jupnp.transport.impl.DatagramIOImpl;
 import org.jupnp.transport.impl.DatagramProcessorImpl;
@@ -41,33 +43,34 @@ import org.jupnp.transport.impl.MulticastReceiverConfigurationImpl;
 import org.jupnp.transport.impl.MulticastReceiverImpl;
 import org.jupnp.transport.impl.NetworkAddressFactoryImpl;
 import org.jupnp.transport.impl.SOAPActionProcessorImpl;
-import org.jupnp.transport.impl.ServletStreamServerConfigurationImpl;
-import org.jupnp.transport.impl.ServletStreamServerImpl;
-import org.jupnp.transport.impl.jetty.StreamClientConfigurationImpl;
-import org.jupnp.transport.impl.osgi.HttpServiceServletContainerAdapter;
+import org.jupnp.transport.impl.StreamClientConfigurationImpl;
 import org.jupnp.transport.spi.DatagramIO;
 import org.jupnp.transport.spi.DatagramProcessor;
 import org.jupnp.transport.spi.GENAEventProcessor;
+import org.jupnp.transport.spi.InitializationException;
 import org.jupnp.transport.spi.MulticastReceiver;
 import org.jupnp.transport.spi.NetworkAddressFactory;
 import org.jupnp.transport.spi.SOAPActionProcessor;
+import org.jupnp.transport.spi.SharedStreamServerProvider;
 import org.jupnp.transport.spi.StreamClient;
 import org.jupnp.transport.spi.StreamClientConfiguration;
 import org.jupnp.transport.spi.StreamServer;
-import org.osgi.framework.BundleContext;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.ConfigurationPolicy;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.http.HttpService;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Configuration data of a typical UPnP stack on OSGi.
  * <p>
- * This configuration utilizes the default network transport implementation found in {@link org.jupnp.transport.impl}.
+ * The network transport implementation is provided by a separate bundle (e.g.
+ * <code>org.jupnp.transport.jetty9</code> or <code>org.jupnp.transport.jetty12</code>) and injected via
+ * {@link #addTransportConfiguration(TransportConfiguration)}; this class no longer bundles one itself.
  * </p>
  * <p>
  * This configuration utilizes the SAX default descriptor binders found in {@link org.jupnp.binding.xml}.
@@ -123,16 +126,14 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
 
     protected Namespace namespace;
 
-    protected BundleContext context;
-
     @SuppressWarnings("rawtypes")
-    protected TransportConfiguration transportConfiguration;
+    protected final List<TransportConfiguration> transportConfigurations = new CopyOnWriteArrayList<>();
+
+    protected final List<SharedStreamServerProvider> sharedStreamServerProviders = new CopyOnWriteArrayList<>();
 
     protected Integer timeoutSeconds = 10;
     protected Integer retryIterations = 5;
     protected Integer retryAfterSeconds = (int) TimeUnit.MINUTES.toSeconds(10);
-
-    protected HttpService httpService;
 
     /**
      * Defaults to port '0', ephemeral.
@@ -161,14 +162,79 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
 
         this.streamListenPort = streamListenPort;
         this.multicastResponsePort = multicastResponsePort;
+    }
 
-        this.transportConfiguration = TransportConfigurationProvider.getDefaultTransportConfiguration();
+    /**
+     * @return the {@link TransportConfiguration} injected via
+     *         {@link #addTransportConfiguration(TransportConfiguration)}
+     * @throws InitializationException if more than one transport bundle's {@link TransportConfiguration} service
+     *             is currently bound, or (should not happen while this component is active, given the AT_LEAST_ONE
+     *             cardinality below, but a bind/deactivation race is not ruled out) if none is
+     */
+    @SuppressWarnings("rawtypes")
+    protected TransportConfiguration getTransportConfiguration() {
+        // Snapshot once: transportConfigurations is a CopyOnWriteArrayList, so size()/isEmpty()/get(0) as
+        // separate calls could each observe a different underlying array if a provider is bound/unbound
+        // concurrently in between, risking a stale null or IndexOutOfBoundsException. The copy constructor
+        // iterates a single fixed snapshot instead.
+        List<TransportConfiguration> current = new ArrayList<>(transportConfigurations);
+        if (current.size() > 1) {
+            throw new InitializationException("Multiple transport implementations found: " + current + ". "
+                    + "Make sure only one jUPnP transport bundle (e.g. org.jupnp.transport.jetty9 or "
+                    + "org.jupnp.transport.jetty12) is installed.");
+        }
+        if (current.isEmpty()) {
+            // Callers (createStreamClient(), the createStreamServer() fallback) dereference the result
+            // directly with no null check, matching every other consumer of this method -- fail loudly here
+            // instead of letting them NPE.
+            throw new InitializationException(
+                    "No transport implementation bound. This should not happen while this component is "
+                            + "active, since the reference requires at least one; check for a concurrent unbind.");
+        }
+        return current.get(0);
+    }
+
+    /**
+     * A mandatory reference to the transport bundle's {@link TransportConfiguration} service (e.g. provided by
+     * <code>org.jupnp.transport.jetty9</code> or <code>org.jupnp.transport.jetty12</code>). Unlike the
+     * ServiceLoader-based discovery used by {@link DefaultUpnpServiceConfiguration} (which can race a
+     * transport bundle that hasn't finished starting yet), Declarative Services defers activation of this
+     * component until a matching service is actually registered, so the outcome does not depend on bundle
+     * start order.
+     * <p>
+     * Cardinality is deliberately {@code AT_LEAST_ONE} rather than the default {@code MANDATORY} (1..1): with a
+     * plain 1..1 reference, DS would silently bind whichever candidate ranks highest if two transport bundles
+     * (e.g. jetty9 and jetty12) were both installed, picking one non-deterministically with no error. Collecting
+     * all bound services here lets {@link #getTransportConfiguration()} fail loudly on ambiguity instead, the
+     * same way {@link org.jupnp.transport.TransportConfigurationProvider} does for the ServiceLoader path.
+     * <p>
+     * The target filter excludes services registered by an OSGi ServiceLoader Mediator (e.g. Apache Aries SPI
+     * Fly), which tags them with the {@code serviceloader.mediator} service property (see
+     * {@code org.apache.aries.spifly.SpiFlyConstants.SERVICELOADER_MEDIATOR_PROPERTY}; there is no
+     * "osgi." prefix, despite the rest of the ServiceLoader Mediator capability namespace using one). Transport
+     * bundles also declare a ServiceLoader capability so a mediator can bridge them to non-DS consumers such as
+     * {@link org.jupnp.transport.TransportConfigurationProvider} (see e.g. org.jupnp.transport.jetty12's
+     * bnd.bnd); without this filter, a mediator present in the same runtime would register a second, separate
+     * service instance for the very same transport bundle, and this reference would see it as a spurious
+     * ambiguity between "two" transport implementations that are actually just one, registered twice.
+     * <p>
+     * The greedy policy option matters here specifically because of the ambiguity check: with the default
+     * reluctant option, DS would keep this component bound to whichever single transport bundle registered
+     * first and never even look at a second one that registers later, silently defeating the "fail loudly if
+     * more than one is installed" guarantee {@link #getTransportConfiguration()} is supposed to provide.
+     */
+    @Reference(cardinality = ReferenceCardinality.AT_LEAST_ONE, policyOption = ReferencePolicyOption.GREEDY, target = "(!(serviceloader.mediator=*))")
+    @SuppressWarnings("rawtypes")
+    public void addTransportConfiguration(TransportConfiguration transportConfiguration) {
+        transportConfigurations.add(transportConfiguration);
+    }
+
+    public void removeTransportConfiguration(TransportConfiguration transportConfiguration) {
+        transportConfigurations.remove(transportConfiguration);
     }
 
     @Activate
-    protected void activate(BundleContext context, Map<String, Object> configProps) {
-        this.context = context;
-
+    protected void activate(Map<String, Object> configProps) {
         setConfigValues(configProps);
 
         createExecutorServices();
@@ -191,13 +257,30 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
         logger.debug("{} deactivated", this);
     }
 
-    @Reference
-    public void setHttpService(HttpService httpService) {
-        this.httpService = httpService;
+    /**
+     * A {@link SharedStreamServerProvider} is entirely optional: on runtimes that don't have one registered
+     * (e.g. because no optional bundle such as <code>org.jupnp.transport.javax.httpservice</code> is installed, or it
+     * is installed but its own dependency -- the classic OSGi HttpService -- isn't available, as on pax-web 10
+     * and newer, which dropped it in favor of the Jakarta Servlet Whiteboard), UPnP requests are served by the
+     * standalone stream server of the discovered transport instead of a shared HTTP server. The greedy policy
+     * option reactivates this component when a provider appears after activation, so the outcome does not depend
+     * on bundle start order.
+     * <p>
+     * Core has no compile-time dependency on javax.servlet or the OSGi HttpService API: {@link
+     * SharedStreamServerProvider} is a generic seam, so whatever a provider bundle needs to talk to its shared
+     * server (HttpService, some other whiteboard, etc.) stays entirely inside that bundle.
+     * <p>
+     * Cardinality and the target filter mirror {@link #addTransportConfiguration(TransportConfiguration)}: at
+     * most one provider is expected, and {@link #createStreamServer(NetworkAddressFactory)} fails loudly rather
+     * than picking one if, unexpectedly, more than one is bound.
+     */
+    @Reference(cardinality = ReferenceCardinality.MULTIPLE, policyOption = ReferencePolicyOption.GREEDY, target = "(!(serviceloader.mediator=*))")
+    public void addSharedStreamServerProvider(SharedStreamServerProvider provider) {
+        sharedStreamServerProviders.add(provider);
     }
 
-    public void unsetHttpService(HttpService httpService) {
-        this.httpService = null;
+    public void removeSharedStreamServerProvider(SharedStreamServerProvider provider) {
+        sharedStreamServerProviders.remove(provider);
     }
 
     @Override
@@ -218,7 +301,7 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
     @Override
     @SuppressWarnings("rawtypes")
     public StreamClient createStreamClient() {
-        return transportConfiguration.createStreamClient(getSyncProtocolExecutorService(),
+        return getTransportConfiguration().createStreamClient(getSyncProtocolExecutorService(),
                 createStreamClientConfiguration());
     }
 
@@ -243,15 +326,21 @@ public class OSGiUpnpServiceConfiguration implements UpnpServiceConfiguration {
     @Override
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory) {
-        if (httpService != null) {
-            logger.debug("createStreamServer using OSGi HttpService");
-            return new ServletStreamServerImpl(new ServletStreamServerConfigurationImpl(
-                    HttpServiceServletContainerAdapter.getInstance(httpService, context),
-                    httpProxyPort != -1 ? httpProxyPort : callbackURI.getBasePath().getPort()));
+        // Snapshot once, same reasoning as getTransportConfiguration().
+        List<SharedStreamServerProvider> providers = new ArrayList<>(sharedStreamServerProviders);
+        if (providers.size() > 1) {
+            throw new InitializationException("Multiple shared stream server providers found: " + providers + ". "
+                    + "Make sure at most one shared-server bundle (e.g. org.jupnp.transport.javax.httpservice) is "
+                    + "installed.");
+        }
+        if (!providers.isEmpty()) {
+            logger.debug("createStreamServer using a shared stream server provider");
+            return providers.get(0)
+                    .createStreamServer(httpProxyPort != -1 ? httpProxyPort : callbackURI.getBasePath().getPort());
         }
 
-        logger.debug("createStreamServer without OSGi HttpService");
-        return transportConfiguration.createStreamServer(networkAddressFactory.getStreamListenPort());
+        logger.debug("createStreamServer without a shared stream server provider");
+        return getTransportConfiguration().createStreamServer(networkAddressFactory.getStreamListenPort());
     }
 
     @Override
