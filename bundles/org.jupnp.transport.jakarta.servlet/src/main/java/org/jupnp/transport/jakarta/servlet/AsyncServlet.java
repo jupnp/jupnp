@@ -34,7 +34,8 @@ import jakarta.servlet.http.HttpServletResponse;
  * Http servlet implementation that uses the {@link Router}'s executor to process the current request and releases
  * the current thread (asynchronous).
  *
- * @author Ivan Iliev
+ * @author Ivan Iliev - Initial javax.servlet based implementation
+ * @author Holger Friedrich - Updated for the jakarta.servlet based implementation
  */
 public class AsyncServlet extends HttpServlet {
 

@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Implementation based on <a href="https://jetty.org/">Jetty 12.x</a>.
  *
- * @author Victor Toni - initial contribution
+ * @author Victor Toni - initial contribution for Jetty 9
  * @author Holger Friedrich - adapted to Jetty 12
  */
 public class Jetty12StreamClientImpl extends AbstractStreamClient<StreamClientConfigurationImpl, Request> {

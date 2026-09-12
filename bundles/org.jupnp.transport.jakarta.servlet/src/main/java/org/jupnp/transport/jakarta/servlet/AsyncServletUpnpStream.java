@@ -36,7 +36,8 @@ import jakarta.servlet.http.HttpServletResponse;
  * proprietary APIs to implement connection checking.
  * </p>
  *
- * @author Christian Bauer
+ * @author Christian Bauer - Initial javax.servlet based implementation
+ * @author Holger Friedrich - Updated for the jakarta.servlet based implementation
  */
 public abstract class AsyncServletUpnpStream extends ServletUpnpStream implements AsyncListener {
 

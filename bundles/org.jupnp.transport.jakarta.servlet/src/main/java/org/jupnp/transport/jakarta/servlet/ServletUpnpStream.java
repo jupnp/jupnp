@@ -41,7 +41,8 @@ import jakarta.servlet.http.HttpServletResponse;
 /**
  * Abstract implementation of a {@link UpnpStream} for the jakarta.servlet-based async servlet.
  *
- * @author Ivan Iliev - Initial contribution and API
+ * @author Ivan Iliev - Initial contribution and API for javax.servlet based implementation
+ * @author Holger Friedrich - Updated for the jakarta.servlet based implementation
  */
 public abstract class ServletUpnpStream extends UpnpStream {
 

@@ -30,7 +30,8 @@ import jakarta.servlet.Servlet;
  * counterpart, there's no Servlet 2.4/3.0 runtime-detection branch here: async support is mandatory
  * since Servlet 5.0/jakarta.servlet, so this always creates the async servlet.
  *
- * @author Christian Bauer - Initial contribution to work with Servlet 3.0
+ * @author Christian Bauer - Initial contribution to work with Servlet 3.0 Initial javax.servlet based implementation
+ * @author Holger Friedrich - Updated for the jakarta.servlet based implementation
  */
 public class ServletStreamServerImpl implements StreamServer<ServletStreamServerConfigurationImpl> {
 

@@ -25,7 +25,8 @@ import jakarta.servlet.http.HttpServletRequest;
 /**
  * UPNP Connection implementation using a {@link HttpServletRequest}.
  *
- * @author Christian Bauer
+ * @author Christian Bauer - Initial javax.servlet based implementation
+ * @author Holger Friedrich - Updated for the jakarta.servlet based implementation
  */
 public class ServletConnection implements Connection {
 

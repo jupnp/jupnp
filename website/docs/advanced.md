@@ -160,8 +160,8 @@ Other UPnP servers will most likely not detect a dropped client connection immed
 
 Not all HTTP client transports in jUPnP support interruption of requests:
 
-| **Transport**                                                          | **Supports Interruption?** |
-|------------------------------------------------------------------------|:--------------------------:|
+| **Transport**                                                              | **Supports Interruption?** |
+|----------------------------------------------------------------------------|:--------------------------:|
 | `org.jupnp.transport.jetty9.Jetty9StreamClientImpl` (Jetty 9.4 transport)  |             YES            |
 | `org.jupnp.transport.jetty12.Jetty12StreamClientImpl` (Jetty 12 transport) |             YES            |
 
@@ -222,8 +222,8 @@ If your HTTP client does not trim those space characters before parsing the resp
 
 The following jUPnP-bundled client transports can deal with a heartbeat signal:
 
-| Transport                                                              | Accepts Heartbeat? |
-|------------------------------------------------------------------------|:------------------:|
+| Transport                                                                  | Accepts Heartbeat? |
+|----------------------------------------------------------------------------|:------------------:|
 | `org.jupnp.transport.jetty9.Jetty9StreamClientImpl` (Jetty 9.4 transport)  |         YES        |
 | `org.jupnp.transport.jetty12.Jetty12StreamClientImpl` (Jetty 12 transport) |         YES        |
 
@@ -231,10 +231,10 @@ Equally important, not all server transports in jUPnP can send heartbeat signals
 Some server APIs do not provide this low-level access.
 If you check the connection state with those transports, the connection is always "alive":
 
-| Transport                                                                                                                                | Sends Heartbeat? |
-|------------------------------------------------------------------------------------------------------------------------------------------|:----------------:|
+| Transport                                                                                                                                  | Sends Heartbeat? |
+|--------------------------------------------------------------------------------------------------------------------------------------------|:----------------:|
 | `org.jupnp.transport.javax.servlet.ServletStreamServerImpl` with `org.jupnp.transport.jetty9.Jetty9ServletContainer` (Jetty 9.4 transport) |        YES       |
-| `org.jupnp.transport.jetty12.Jetty12StreamServerImpl` (Jetty 12 transport)                                                       |        YES       |
+| `org.jupnp.transport.jetty12.Jetty12StreamServerImpl` (Jetty 12 transport)                                                                 |        YES       |
 
 In practice, this heartbeat feature is less useful than it sounds in theory: As you usually don't control which HTTP clients will access your server, sending them "garbage" bytes before responding properly will most likely cause interoperability problems.
 

@@ -39,7 +39,8 @@ import jakarta.servlet.Servlet;
  * source-incompatible, so this lives in a separate package/bundle rather than being shared.
  * </p>
  *
- * @author Christian Bauer
+ * @author Christian Bauer - Initial javax.servlet based implementation
+ * @author Holger Friedrich - Updated for the jakarta.servlet based implementation
  */
 public interface ServletContainerAdapter {
 

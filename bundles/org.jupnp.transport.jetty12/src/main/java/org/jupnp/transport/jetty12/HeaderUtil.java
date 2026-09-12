@@ -26,8 +26,8 @@ import org.jupnp.http.Headers;
 /**
  * Converts from/to jUPnP {@link Headers} to/from Jetty 12.x header format.
  *
- * @author Christian Bauer - initial contribution
- * @author Victor Toni - initial contribution
+ * @author Christian Bauer - initial contribution for Jetty 9
+ * @author Victor Toni - initial contribution for Jetty 9
  * @author Holger Friedrich - adapted to Jetty 12
  */
 public class HeaderUtil {
