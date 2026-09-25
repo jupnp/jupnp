@@ -16,8 +16,10 @@
 package org.jupnp.model.message.header;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,32 +40,56 @@ public abstract class UpnpHeader<T> {
      */
     public enum Type {
 
-        USN("USN", USNRootDeviceHeader.class, DeviceUSNHeader.class, ServiceUSNHeader.class, UDNHeader.class),
-        NT("NT", RootDeviceHeader.class, UDADeviceTypeHeader.class, UDAServiceTypeHeader.class, DeviceTypeHeader.class,
-                ServiceTypeHeader.class, UDNHeader.class, NTEventHeader.class),
-        NTS("NTS", NTSHeader.class),
-        HOST("HOST", HostHeader.class),
-        SERVER("SERVER", ServerHeader.class),
-        LOCATION("LOCATION", LocationHeader.class),
-        MAX_AGE("CACHE-CONTROL", MaxAgeHeader.class),
-        USER_AGENT("USER-AGENT", UserAgentHeader.class),
-        CONTENT_TYPE("CONTENT-TYPE", ContentTypeHeader.class),
-        MAN("MAN", MANHeader.class),
-        MX("MX", MXHeader.class),
-        ST("ST", STAllHeader.class, RootDeviceHeader.class, UDADeviceTypeHeader.class, UDAServiceTypeHeader.class,
-                DeviceTypeHeader.class, ServiceTypeHeader.class, UDNHeader.class),
-        EXT("EXT", EXTHeader.class),
-        SOAPACTION("SOAPACTION", SoapActionHeader.class),
-        TIMEOUT("TIMEOUT", TimeoutHeader.class),
-        CALLBACK("CALLBACK", CallbackHeader.class),
-        SID("SID", SubscriptionIdHeader.class),
-        SEQ("SEQ", EventSequenceHeader.class),
-        RANGE("RANGE", RangeHeader.class),
-        CONTENT_RANGE("CONTENT-RANGE", ContentRangeHeader.class),
-        PRAGMA("PRAGMA", PragmaHeader.class),
-
-        EXT_IFACE_MAC("X-CLING-IFACE-MAC", InterfaceMacHeader.class),
-        EXT_AV_CLIENT_INFO("X-AV-CLIENT-INFO", AVClientInfoHeader.class);
+        USN("USN", new LinkedHashMap<>() {
+            {
+                put(USNRootDeviceHeader.class, USNRootDeviceHeader::new);
+                put(DeviceUSNHeader.class, DeviceUSNHeader::new);
+                put(ServiceUSNHeader.class, ServiceUSNHeader::new);
+                put(UDNHeader.class, UDNHeader::new);
+            }
+        }),
+        NT("NT", new LinkedHashMap<>() {
+            {
+                put(RootDeviceHeader.class, RootDeviceHeader::new);
+                put(UDADeviceTypeHeader.class, UDADeviceTypeHeader::new);
+                put(UDAServiceTypeHeader.class, UDAServiceTypeHeader::new);
+                put(DeviceTypeHeader.class, DeviceTypeHeader::new);
+                put(ServiceTypeHeader.class, ServiceTypeHeader::new);
+                put(UDNHeader.class, UDNHeader::new);
+                put(NTEventHeader.class, NTEventHeader::new);
+            }
+        }),
+        NTS("NTS", Map.of(NTSHeader.class, NTSHeader::new)),
+        HOST("HOST", Map.of(HostHeader.class, HostHeader::new)),
+        SERVER("SERVER", Map.of(ServerHeader.class, ServerHeader::new)),
+        LOCATION("LOCATION", Map.of(LocationHeader.class, LocationHeader::new)),
+        MAX_AGE("CACHE-CONTROL", Map.of(MaxAgeHeader.class, MaxAgeHeader::new)),
+        USER_AGENT("USER-AGENT", Map.of(UserAgentHeader.class, UserAgentHeader::new)),
+        CONTENT_TYPE("CONTENT-TYPE", Map.of(ContentTypeHeader.class, ContentTypeHeader::new)),
+        MAN("MAN", Map.of(MANHeader.class, MANHeader::new)),
+        MX("MX", Map.of(MXHeader.class, MXHeader::new)),
+        ST("ST", new LinkedHashMap<>() {
+            {
+                put(STAllHeader.class, STAllHeader::new);
+                put(RootDeviceHeader.class, RootDeviceHeader::new);
+                put(UDADeviceTypeHeader.class, UDADeviceTypeHeader::new);
+                put(UDAServiceTypeHeader.class, UDAServiceTypeHeader::new);
+                put(DeviceTypeHeader.class, DeviceTypeHeader::new);
+                put(ServiceTypeHeader.class, ServiceTypeHeader::new);
+                put(UDNHeader.class, UDNHeader::new);
+            }
+        }),
+        EXT("EXT", Map.of(EXTHeader.class, EXTHeader::new)),
+        SOAPACTION("SOAPACTION", Map.of(SoapActionHeader.class, SoapActionHeader::new)),
+        TIMEOUT("TIMEOUT", Map.of(TimeoutHeader.class, TimeoutHeader::new)),
+        CALLBACK("CALLBACK", Map.of(CallbackHeader.class, CallbackHeader::new)),
+        SID("SID", Map.of(SubscriptionIdHeader.class, SubscriptionIdHeader::new)),
+        SEQ("SEQ", Map.of(EventSequenceHeader.class, EventSequenceHeader::new)),
+        RANGE("RANGE", Map.of(RangeHeader.class, RangeHeader::new)),
+        CONTENT_RANGE("CONTENT-RANGE", Map.of(ContentRangeHeader.class, ContentRangeHeader::new)),
+        PRAGMA("PRAGMA", Map.of(PragmaHeader.class, PragmaHeader::new)),
+        EXT_IFACE_MAC("X-CLING-IFACE-MAC", Map.of(InterfaceMacHeader.class, InterfaceMacHeader::new)),
+        EXT_AV_CLIENT_INFO("X-AV-CLIENT-INFO", Map.of(AVClientInfoHeader.class, AVClientInfoHeader::new));
 
         private static final Map<String, Type> byName = new HashMap<>() {
             {
@@ -74,9 +100,9 @@ public abstract class UpnpHeader<T> {
         };
 
         private final String httpName;
-        private final Class<? extends UpnpHeader>[] headerTypes;
+        private final Map<Class<? extends UpnpHeader>, Supplier<? extends UpnpHeader>> headerTypes;
 
-        Type(String httpName, Class<? extends UpnpHeader>... headerClass) {
+        Type(String httpName, Map<Class<? extends UpnpHeader>, Supplier<? extends UpnpHeader>> headerClass) {
             this.httpName = httpName;
             this.headerTypes = headerClass;
         }
@@ -85,12 +111,16 @@ public abstract class UpnpHeader<T> {
             return httpName;
         }
 
-        public Class<? extends UpnpHeader>[] getHeaderTypes() {
+        public Map<Class<? extends UpnpHeader>, Supplier<? extends UpnpHeader>> getHeaderTypes() {
             return headerTypes;
         }
 
         public boolean isValidHeaderType(Class<? extends UpnpHeader> clazz) {
-            for (Class<? extends UpnpHeader> permissibleType : getHeaderTypes()) {
+            if (headerTypes.containsKey(clazz)) {
+                return true;
+            }
+
+            for (Class<? extends UpnpHeader> permissibleType : headerTypes.keySet()) {
                 if (permissibleType.isAssignableFrom(clazz)) {
                     return true;
                 }
@@ -147,21 +177,24 @@ public abstract class UpnpHeader<T> {
         final Logger logger = LoggerFactory.getLogger(UpnpHeader.class);
 
         // Try all the UPnP headers and see if one matches our value parsers
+        Map<Class<? extends UpnpHeader>, Supplier<? extends UpnpHeader>> headerTypes = type.getHeaderTypes();
         UpnpHeader upnpHeader = null;
-        for (int i = 0; i < type.getHeaderTypes().length && upnpHeader == null; i++) {
-            Class<? extends UpnpHeader> headerClass = type.getHeaderTypes()[i];
+
+        for (Map.Entry<Class<? extends UpnpHeader>, Supplier<? extends UpnpHeader>> headerType : headerTypes
+                .entrySet()) {
+            Class<? extends UpnpHeader> headerClass = headerType.getKey();
+            Supplier<? extends UpnpHeader> factory = headerType.getValue();
             try {
                 logger.trace("Trying to parse '{}' with class: {}", type, headerClass.getSimpleName());
-                upnpHeader = headerClass.getDeclaredConstructor().newInstance();
+                upnpHeader = factory.get();
                 if (headerValue != null) {
                     upnpHeader.setString(headerValue);
                 }
+                break;
             } catch (InvalidHeaderException e) {
                 logger.trace("Invalid header value for tested type: {} - {}", headerClass.getSimpleName(),
                         e.getMessage());
                 upnpHeader = null;
-            } catch (Exception e) {
-                logger.error("Error instantiating header of type '{}' with value: {}", type, headerValue, e);
             }
 
         }
