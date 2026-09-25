@@ -38,6 +38,8 @@ public class ServiceId {
     public static final Pattern BROKEN_PATTERN = Pattern
             .compile("urn:(" + Constants.REGEX_NAMESPACE + "):service:(" + Constants.REGEX_ID + ")");
 
+    public static final Pattern UPNP_VIOLATION = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):serviceId:");
+
     private String namespace;
     private String id;
 
@@ -88,14 +90,14 @@ public class ServiceId {
 
         // TODO: UPNP VIOLATION: Kodak Media Server doesn't provide any service ID token
         // urn:upnp-org:serviceId:
-        matcher = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):serviceId:").matcher(s);
+        matcher = ServiceId.UPNP_VIOLATION.matcher(s);
         if (matcher.matches() && matcher.groupCount() >= 1) {
             SpecificationViolationReporter.report("No service ID token, defaulting to {}: {}", UNKNOWN, s);
             return new ServiceId(matcher.group(1), UNKNOWN);
         }
 
         // TODO: UPNP VIOLATION: PS Audio Bridge has invalid service IDs
-        String[] tokens = s.split("[:]");
+        String[] tokens = s.split(":");
         if (tokens.length == 4) {
             SpecificationViolationReporter.report("Trying a simple colon-split of: {}", s);
             return new ServiceId(tokens[1], tokens[3]);

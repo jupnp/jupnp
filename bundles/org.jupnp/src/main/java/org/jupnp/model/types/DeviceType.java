@@ -38,6 +38,14 @@ public class DeviceType {
     public static final Pattern PATTERN = Pattern
             .compile("urn:(" + Constants.REGEX_NAMESPACE + "):device:(" + Constants.REGEX_TYPE + "):([0-9]+).*");
 
+    public static final Pattern PATTERN_VIOLATION_1 = Pattern
+            .compile("urn:(" + Constants.REGEX_NAMESPACE + "):device::([0-9]+).*");
+
+    public static final Pattern PATTERN_VIOLATION_2 = Pattern
+            .compile("urn:(" + Constants.REGEX_NAMESPACE + "):device:(.+?):([0-9]+).*");
+
+    public static final Pattern PATTERN_VIOLATION_FIX = Pattern.compile("[^a-zA-Z_0-9\\-]");
+
     private static final Pattern PATTERN_WHITESPACE = Pattern.compile("\\s");
     private static final Pattern PATTERN_NAMESPACE = Pattern.compile(Constants.REGEX_NAMESPACE);
     private static final Pattern PATTERN_TYPE = Pattern.compile(Constants.REGEX_TYPE);
@@ -105,7 +113,7 @@ public class DeviceType {
 
             // TODO: UPNP VIOLATION: Escient doesn't provide any device type token
             // urn:schemas-upnp-org:device::1
-            matcher = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):device::([0-9]+).*").matcher(s);
+            matcher = PATTERN_VIOLATION_1.matcher(s);
             if (matcher.matches() && matcher.groupCount() >= 2) {
                 SpecificationViolationReporter.report("No device type token, defaulting to " + UNKNOWN + ": " + s);
                 return new DeviceType(matcher.group(1), UNKNOWN, Integer.parseInt(matcher.group(2)));
@@ -113,9 +121,9 @@ public class DeviceType {
 
             // TODO: UPNP VIOLATION: EyeTV Netstream uses colons in device type token
             // urn:schemas-microsoft-com:service:pbda:tuner:1
-            matcher = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):device:(.+?):([0-9]+).*").matcher(s);
+            matcher = PATTERN_VIOLATION_2.matcher(s);
             if (matcher.matches() && matcher.groupCount() >= 3) {
-                String cleanToken = matcher.group(2).replaceAll("[^a-zA-Z_0-9\\-]", "-");
+                String cleanToken = PATTERN_VIOLATION_FIX.matcher(matcher.group(2)).replaceAll("-");
                 SpecificationViolationReporter.report("Replacing invalid device type token '{}' with: {}",
                         matcher.group(2), cleanToken);
                 return new DeviceType(matcher.group(1), cleanToken, Integer.parseInt(matcher.group(3)));
