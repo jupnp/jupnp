@@ -25,7 +25,7 @@ The build infrastructure is based on Maven and includes the Maven Wrapper,
 so you do not need to install Maven separately.
 
 What you need before you start:
-- Java Development Kit (JDK) 11 or newer
+- Java Development Kit (JDK) 11 or 17. Note that Java 17 is required if you intend to use Jetty 12.
 
 You can usually install a JDK using your operating system's package manager, for example:
 - Debian/Ubuntu: `openjdk-21-jdk`

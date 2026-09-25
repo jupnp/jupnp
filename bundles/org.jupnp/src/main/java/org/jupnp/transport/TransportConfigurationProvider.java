@@ -15,21 +15,139 @@
  */
 package org.jupnp.transport;
 
-import org.jupnp.transport.impl.jetty.JettyTransportConfiguration;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
+
+import org.jupnp.transport.spi.InitializationException;
 import org.jupnp.transport.spi.StreamClientConfiguration;
 import org.jupnp.transport.spi.StreamServerConfiguration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * This is the central place to switch between transport implementations.
+ * This is the central place to discover the transport implementation to be used.
+ * <p>
+ * Transport implementations are no longer part of the core library, they are provided by separate transport
+ * bundles (e.g. <code>org.jupnp.transport.jetty9</code> or <code>org.jupnp.transport.jetty12</code>). Exactly
+ * one transport bundle should be available at runtime, discovered via the {@link ServiceLoader} mechanism. In
+ * OSGi, this relies on an OSGi Service Loader Mediator (e.g. Apache Aries SPI Fly) being installed to bridge
+ * discovery across bundles; this bundle's manifest declares optional ServiceLoader capabilities for that
+ * purpose. They are optional so the bundle still resolves without a mediator present -- discovery itself
+ * just won't work in that case, surfacing as the configuration error described below.
+ * </p>
+ * <p>
+ * There is deliberately no reflective fallback: {@link org.jupnp.OSGiUpnpServiceConfiguration}, the shipped
+ * OSGi component, does not use this class at all (it consumes {@link TransportConfiguration} via a mandatory
+ * Declarative Services reference instead). A missing or misconfigured Service Loader Mediator should
+ * therefore surface as a clear configuration error here, not be silently papered over.
+ * </p>
  *
- * @author Victor Toni - inital contribution
- *
+ * @author Victor Toni - initial contribution
+ * @author Holger Friedrich - discover transport implementations instead of hard-wiring Jetty
  */
 public final class TransportConfigurationProvider {
 
-    public static <SCC extends StreamClientConfiguration, SSC extends StreamServerConfiguration> TransportConfiguration<SCC, SSC> getDefaultTransportConfiguration() {
-        final TransportConfiguration<SCC, SSC> transportConfiguration = new JettyTransportConfiguration();
+    private static final Logger LOGGER = LoggerFactory.getLogger(TransportConfigurationProvider.class);
 
+    // In OSGi, an OSGi Service Loader Mediator (e.g. Apache Aries SPI Fly) may still be registering the
+    // provider bundle when this class is first used (e.g. on eager bundle activation): jUPnP's own bundle
+    // and the mediator/provider both start concurrently, with no guaranteed ordering between them. This
+    // brief retry only covers millisecond-scale jitter, not the general case: the gap can span however
+    // long the framework takes to work through the other bundles in its startup sequence first, which a
+    // short bounded retry cannot reliably close without imposing that same delay on every deployment that
+    // has no mediator at all. The same kind of race can also produce a transient "multiple providers found"
+    // failure instead of "none found", e.g. when an old and a new version of a transport bundle briefly
+    // overlap during a bundle update -- getDefaultTransportConfiguration() retries that case too. Consumers
+    // that need deterministic behavior in OSGi should prefer org.jupnp.OSGiUpnpServiceConfiguration, which
+    // consumes TransportConfiguration via Declarative Services references instead of this class, so
+    // activation is deferred until the transport bundle has actually registered.
+    private static final int SERVICE_LOADER_RETRY_ATTEMPTS = 5;
+    private static final long SERVICE_LOADER_RETRY_DELAY_MILLIS = 50;
+
+    private TransportConfigurationProvider() {
+        // no instance of this class
+    }
+
+    public static <SCC extends StreamClientConfiguration, SSC extends StreamServerConfiguration> TransportConfiguration<SCC, SSC> getDefaultTransportConfiguration() {
+        InitializationException lastAmbiguityFailure = null;
+        for (int attempt = 1; attempt <= SERVICE_LOADER_RETRY_ATTEMPTS; attempt++) {
+            lastAmbiguityFailure = null;
+            TransportConfiguration<SCC, SSC> transportConfiguration = null;
+            try {
+                transportConfiguration = discoverViaServiceLoader();
+            } catch (InitializationException e) {
+                // discoverViaServiceLoader() only throws for the "multiple providers" case. Retry it the
+                // same as the "no provider found" case below: the same bundle-registration race this loop
+                // exists for can just as easily produce a transient double-registration, e.g. an old and a
+                // new version of a transport bundle briefly overlapping during a bundle update.
+                lastAmbiguityFailure = e;
+            }
+            if (transportConfiguration != null) {
+                return transportConfiguration;
+            }
+            if (attempt < SERVICE_LOADER_RETRY_ATTEMPTS) {
+                try {
+                    Thread.sleep(SERVICE_LOADER_RETRY_DELAY_MILLIS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new InitializationException(
+                            "Interrupted while waiting to retry ServiceLoader transport discovery.", e);
+                }
+            }
+        }
+
+        if (lastAmbiguityFailure != null) {
+            throw lastAmbiguityFailure;
+        }
+
+        throw new InitializationException("No usable transport implementation found via ServiceLoader. "
+                + "Add a jUPnP transport bundle (e.g. org.jupnp:org.jupnp.transport.jetty9) as a dependency. "
+                + "In OSGi, also ensure an OSGi Service Loader Mediator (e.g. Apache Aries SPI Fly) is "
+                + "installed and started.");
+    }
+
+    // Discover implementations announced via META-INF/services
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private static <SCC extends StreamClientConfiguration, SSC extends StreamServerConfiguration> TransportConfiguration<SCC, SSC> discoverViaServiceLoader() {
+        TransportConfiguration<SCC, SSC> transportConfiguration = null;
+        List<String> foundClassNames = new ArrayList<>();
+        try {
+            // Deliberately the single-argument ServiceLoader.load(Class) overload, not
+            // load(Class, ClassLoader): an OSGi Service Loader Mediator (e.g. Apache Aries SPI Fly)
+            // bridges cross-bundle discovery by weaving the thread context classloader around calls
+            // to this overload. Passing an explicit classloader bypasses that weaving entirely and
+            // silently defeats ServiceLoader-based discovery in OSGi, even with correct
+            // Provide-/Require-Capability headers in place.
+            Iterator<TransportConfiguration> iterator = ServiceLoader.load(TransportConfiguration.class).iterator();
+            while (iterator.hasNext()) {
+                try {
+                    TransportConfiguration<SCC, SSC> candidate = iterator.next();
+                    foundClassNames.add(candidate.getClass().getName());
+                    if (transportConfiguration == null) {
+                        transportConfiguration = candidate;
+                    }
+                } catch (ServiceConfigurationError | LinkageError e) {
+                    LOGGER.debug("Ignoring a transport implementation that could not be loaded via ServiceLoader", e);
+                }
+            }
+        } catch (ServiceConfigurationError | LinkageError e) {
+            LOGGER.debug("ServiceLoader discovery of transport implementations failed", e);
+        }
+        // ServiceLoader iteration order is unspecified, so silently picking the first of several
+        // candidates would make transport selection non-deterministic across runs. Fail loudly instead,
+        // the same way the no-provider-found case does, rather than risk a random pick.
+        if (foundClassNames.size() > 1) {
+            throw new InitializationException("Multiple transport implementations found via ServiceLoader: "
+                    + foundClassNames + ". Make sure only one jUPnP transport bundle (e.g. "
+                    + "org.jupnp.transport.jetty9 or org.jupnp.transport.jetty12) is on the class path.");
+        }
+        if (transportConfiguration != null) {
+            LOGGER.debug("Using transport implementation '{}' found via ServiceLoader",
+                    transportConfiguration.getClass().getName());
+        }
         return transportConfiguration;
     }
 }
