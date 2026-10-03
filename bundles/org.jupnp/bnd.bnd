@@ -1,6 +1,19 @@
 -include: ../../bnd.bnd
 
+# Used by HttpExchangeUpnpStream, an alternative to the servlet-based transports built on the JDK's own
+# com.sun.net.httpserver; not every JVM/OSGi framework exports it, so it stays optional. Core no longer
+# references javax.servlet or org.osgi.service.http at all -- see org.jupnp.transport.javax.servlet and
+# org.jupnp.transport.javax.httpservice, which took over the former optional HttpService-sharing fallback in
+# OSGiUpnpServiceConfiguration via the generic SharedStreamServerProvider SPI instead.
 Import-Package: com.sun.net.httpserver;resolution:=optional,\
- org.eclipse.jetty.server;resolution:=optional,\
- org.eclipse.jetty.servlet;resolution:=optional,\
  *
+
+# The transport implementation is discovered at runtime via java.util.ServiceLoader / META-INF/services,
+# see TransportConfigurationProvider. In OSGi, this is bridged across bundles by an OSGi Service Loader
+# Mediator (e.g. Apache Aries SPI Fly) if one is running. The capability below lets such a mediator
+# recognize this bundle as a ServiceLoader consumer for TransportConfiguration and weave the
+# ServiceLoader.load() call so it can see providers from other bundles. There is no reflective fallback:
+# org.jupnp.OSGiUpnpServiceConfiguration, the shipped OSGi component, does not use this discovery
+# mechanism at all (it consumes TransportConfiguration via a mandatory Declarative Services reference).
+Require-Capability: osgi.serviceloader;filter:="(osgi.serviceloader=org.jupnp.transport.TransportConfiguration)";cardinality:=multiple;resolution:=optional,\
+ osgi.extender;filter:="(osgi.extender=osgi.serviceloader.processor)";resolution:=optional

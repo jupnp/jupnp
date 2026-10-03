@@ -5,7 +5,7 @@
 
   <groupId>org.jupnp</groupId>
   <artifactId>jupnp</artifactId>
-  <version>3.0.6-SNAPSHOT</version>
+  <version>4.0.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>jUPnP</name>
@@ -62,13 +62,18 @@
     <android.version>4.1.1.4</android.version>
     <args4j.version>2.0.12</args4j.version>
     <bnd.version>6.4.0</bnd.version>
-    <jetty.version>9.4.53.v20231009</jetty.version>
+    <jakarta.servlet.api.version>6.1.0</jakarta.servlet.api.version>
+    <jetty9.version>9.4.58.v20250814</jetty9.version>
+    <jetty12.version>12.1.12</jetty12.version>
     <junit.jupiter.version>5.10.1</junit.jupiter.version>
     <junit.platform.version>1.10.1</junit.platform.version>
-    <logback.version>1.5.35</logback.version>
+    <logback.version>1.6.2</logback.version>
     <servlet.api.version>3.1.0</servlet.api.version>
-    <slf4j.version>2.0.11</slf4j.version>
+    <slf4j.version>2.0.18</slf4j.version>
     <osgi.version>7.0.0</osgi.version>
+    <!-- OSGi Compendium R8's HTTP Whiteboard Service for Jakarta Servlet, standalone since it postdates
+         osgi.cmpn ${osgi.version} -->
+    <osgi.service.servlet.version>2.0.0</osgi.service.servlet.version>
 
     <bnd.testing.runee>JavaSE-11</bnd.testing.runee>
     <bnd.testing.resolve>true</bnd.testing.resolve>
@@ -233,7 +238,9 @@
               <artifact>itests</artifact>
               <artifact>org.jupnp.common</artifact>
               <artifact>org.jupnp.device.simple</artifact>
-              <artifact>org.jupnp.osgi.tests</artifact>
+              <artifact>org.jupnp.osgi.tests.jetty9</artifact>
+              <artifact>org.jupnp.osgi.tests.jetty12</artifact>
+              <artifact>org.jupnp.osgi.tests.jetty12.jakarta.whiteboard</artifact>
             </excludeArtifacts>
           </configuration>
         </plugin>
