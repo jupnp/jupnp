@@ -57,6 +57,9 @@
     <basedirRoot>.</basedirRoot>
     <bndFile>${basedirRoot}/bnd.bnd</bndFile>
     <maven.compiler.release>11</maven.compiler.release>
+    <!-- Maven 3.10+ sets a default outputTimestamp, which makes bnd keep a literal SNAPSHOT qualifier instead of a
+      build timestamp. A single character disables reproducible builds and restores timestamped snapshot versions. -->
+    <project.build.outputTimestamp>-</project.build.outputTimestamp>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
     <android.version>4.1.1.4</android.version>
