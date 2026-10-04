@@ -44,5 +44,6 @@ updates:
       - dependency-name: "org.codehaus.mojo:*"
       - dependency-name: "*plugin*"
       - dependency-name: "org.eclipse.jdt:ecj" # eclipse compiler
+      - dependency-name: "org.apache.maven:apache-maven" # maven wrapper distribution
     ignore:
       - dependency-name: "com.diffplug.spotless:spotless-maven-plugin" # updated manually in sync with our formatting configuration; do not update via Dependabot
