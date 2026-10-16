@@ -16,25 +16,32 @@
 package org.jupnp.transport.jakarta.whiteboard;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
+import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.servlet.runtime.HttpServiceRuntime;
 import org.osgi.service.servlet.runtime.HttpServiceRuntimeConstants;
+
+import jakarta.servlet.Servlet;
 
 /**
  * No mocking framework is declared for this module (see the {@code org.jupnp.bom.test} BOM), so
  * {@link BundleContext} and {@link ServiceReference} are faked with plain {@link Proxy} instances instead --
  * both interfaces are large, but {@link JakartaWhiteboardServletContainerAdapter#addConnector(String, int)}
- * only ever calls {@code BundleContext.getServiceReference(HttpServiceRuntime.class)} and
+ * only ever calls {@code BundleContext.getServiceReferences(HttpServiceRuntime.class, filter)} and
  * {@code ServiceReference.getProperty(HttpServiceRuntimeConstants.HTTP_SERVICE_ENDPOINT)} on its way to
  * discovering a port, so only those two calls need a real answer.
  *
@@ -43,35 +50,58 @@ import org.osgi.service.servlet.runtime.HttpServiceRuntimeConstants;
 class JakartaWhiteboardServletContainerAdapterTest {
 
     @Test
-    void addConnectorWaitsForEndpointToBecomeAvailable() throws Exception {
-        long testStart = System.currentTimeMillis();
-        long availableAfterMillis = 150;
-        int expectedPort = 45123;
-
-        // Simulates HttpServiceRuntime registering before Pax Web has actually finished binding a listener and
-        // updated its HTTP_SERVICE_ENDPOINT property -- the exact race PORT_DISCOVERY_TIMEOUT_MILLIS/
-        // PORT_DISCOVERY_POLL_MILLIS exist to ride out.
-        BundleContext context = fakeBundleContext(() -> System.currentTimeMillis() - testStart >= availableAfterMillis
-                ? new String[] { "http://0.0.0.0:" + expectedPort }
-                : null);
+    void addConnectorReadsPortFromRuntimeEndpoint() throws Exception {
+        BundleContext context = fakeBundleContext(
+                () -> new String[] { "/relative-only", "https://0.0.0.0:8443/", "http://0.0.0.0:45123/" });
         JakartaWhiteboardServletContainerAdapter adapter = new JakartaWhiteboardServletContainerAdapter(context);
 
-        int port = adapter.addConnector("0.0.0.0", -1, 5000, 20);
-
-        assertEquals(expectedPort, port);
-        assertTrue(System.currentTimeMillis() - testStart >= availableAfterMillis,
-                "addConnector() returned before the endpoint actually became available -- it should have polled, "
-                        + "not raced ahead of HttpServiceRuntime");
+        assertEquals(45123, adapter.addConnector("0.0.0.0", -1));
     }
 
     @Test
-    void addConnectorThrowsIOExceptionWhenNoEndpointBecomesAvailableWithinTimeout() {
+    void addConnectorThrowsIOExceptionImmediatelyWhenNoEndpointIsAvailable() {
+        // Must not wait for an endpoint to appear: addConnector() runs on the thread activating jUPnP, which
+        // during a bundle refresh may be the one that still has to restart Pax Web.
         BundleContext context = fakeBundleContext(() -> null);
         JakartaWhiteboardServletContainerAdapter adapter = new JakartaWhiteboardServletContainerAdapter(context);
 
-        IOException exception = assertThrows(IOException.class, () -> adapter.addConnector("0.0.0.0", -1, 200, 20));
+        long start = System.currentTimeMillis();
+        IOException exception = assertThrows(IOException.class, () -> adapter.addConnector("0.0.0.0", -1));
+        assertTrue(System.currentTimeMillis() - start < 1000, "addConnector() should not wait for an endpoint");
         assertTrue(exception.getMessage().contains("HttpServiceRuntime"),
                 "Exception message should explain what couldn't be discovered: " + exception.getMessage());
+    }
+
+    @Test
+    void registerServletDoesNotWaitForWhiteboardToPickItUp() throws Exception {
+        // No HttpServiceRuntime at all, so the Whiteboard never picks the registration up -- registerServlet()
+        // must still return right away, leaving the confirmation to a background thread.
+        List<String> unregistered = new CopyOnWriteArrayList<>();
+        BundleContext context = proxy(BundleContext.class, (proxyInstance, method, args) -> {
+            if ("registerService".equals(method.getName())) {
+                String name = args[1] instanceof Servlet ? "servlet" : "context";
+                return proxy(ServiceRegistration.class, (p, m, a) -> {
+                    if ("unregister".equals(m.getName())) {
+                        unregistered.add(name);
+                    }
+                    return null;
+                });
+            }
+            return null;
+        });
+        JakartaWhiteboardServletContainerAdapter adapter = new JakartaWhiteboardServletContainerAdapter(context);
+
+        long start = System.currentTimeMillis();
+        adapter.registerServlet("/upnpcallback", proxy(Servlet.class, (p, m, a) -> null));
+        assertTrue(System.currentTimeMillis() - start < 1000, "registerServlet() should not wait for the Whiteboard");
+
+        Thread check = adapter.getRegistrationCheck();
+        assertNotNull(check, "Expected a background thread confirming the Whiteboard registration");
+
+        adapter.stopIfRunning();
+        check.join(5000);
+        assertFalse(check.isAlive(), "stopIfRunning() should cancel the background registration check");
+        assertEquals(List.of("servlet", "context"), unregistered);
     }
 
     @Test
@@ -83,15 +113,18 @@ class JakartaWhiteboardServletContainerAdapterTest {
         });
         JakartaWhiteboardServletContainerAdapter adapter = new JakartaWhiteboardServletContainerAdapter(context);
 
-        assertEquals(8080, adapter.addConnector("0.0.0.0", 8080, 5000, 20));
+        assertEquals(8080, adapter.addConnector("0.0.0.0", 8080));
     }
 
     private static BundleContext fakeBundleContext(Supplier<String[]> endpoints) {
         ServiceReference<HttpServiceRuntime> reference = fakeServiceReference(endpoints);
         return proxy(BundleContext.class, (proxyInstance, method, args) -> {
-            if ("getServiceReference".equals(method.getName()) && args != null && args.length == 1
-                    && args[0] == HttpServiceRuntime.class) {
-                return reference;
+            // Only answers the lookup with the provider's own activation filter, so addConnector() can't read a
+            // different runtime than the one that let the provider activate
+            if ("getServiceReferences".equals(method.getName()) && args != null && args.length == 2
+                    && args[0] == HttpServiceRuntime.class
+                    && JakartaWhiteboardSharedStreamServerProvider.HTTP_ENDPOINT_FILTER.equals(args[1])) {
+                return List.of(reference);
             }
             return null;
         });

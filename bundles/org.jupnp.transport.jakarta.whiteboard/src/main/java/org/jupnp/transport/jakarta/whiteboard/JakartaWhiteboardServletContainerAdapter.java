@@ -26,9 +26,9 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import org.jupnp.transport.jakarta.servlet.ServletContainerAdapter;
-import org.jupnp.transport.spi.InitializationException;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
+import org.osgi.framework.InvalidSyntaxException;
 import org.osgi.framework.ServiceReference;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.servlet.context.ServletContextHelper;
@@ -87,32 +87,21 @@ public class JakartaWhiteboardServletContainerAdapter implements ServletContaine
 
     /**
      * How long to wait for the Whiteboard to pick up a registration, see
-     * {@link #confirmWhiteboardPickedUpRegistration}. Generous on purpose: a Whiteboard implementation's own
+     * {@link #checkWhiteboardPickedUpRegistration}. Generous on purpose: a Whiteboard implementation's own
      * bootstrap (binding its own {@code HttpService}, creating its default context, wiring that context into
      * a real servlet container handler) is a multi-step process that runs independently of, and can easily
      * outlast, this bundle's own startup -- observed directly against Pax Web 11.x via DEBUG-level logging,
      * and confirmed against a real openHAB startup where the full 20s of an earlier, smaller timeout was
      * consumed before falling back: a live deployment has many other Whiteboard resources (REST API, web UI,
      * addon UIs) registering at the same time, so jUPnP's callback servlet can end up queued behind all of
-     * that.
+     * that. The wait runs on a background thread (see {@link #registerServlet}), never on the caller's.
      */
     private static final long REGISTRATION_CONFIRM_TIMEOUT_MILLIS = 60000;
     private static final long REGISTRATION_CONFIRM_POLL_MILLIS = 250;
 
     /**
-     * How long to wait for {@link HttpServiceRuntime} to publish a usable endpoint, see
-     * {@link #discoverPortFromRuntime(long, long)}. Deliberately the same budget as
-     * {@link #REGISTRATION_CONFIRM_TIMEOUT_MILLIS}: both are waiting on the same underlying event -- the
-     * Whiteboard implementation finishing its own startup -- so there's no reason for this one to give up
-     * sooner and have {@link #addConnector(String, int)} throw before the Whiteboard genuinely had a chance
-     * to start.
-     */
-    private static final long PORT_DISCOVERY_TIMEOUT_MILLIS = REGISTRATION_CONFIRM_TIMEOUT_MILLIS;
-    private static final long PORT_DISCOVERY_POLL_MILLIS = REGISTRATION_CONFIRM_POLL_MILLIS;
-
-    /**
      * Grace period to wait for confirmation after the fallback re-register in
-     * {@link #confirmWhiteboardPickedUpRegistration}.
+     * {@link #checkWhiteboardPickedUpRegistration}.
      */
     private static final long REREGISTER_CONFIRM_TIMEOUT_MILLIS = 5000;
 
@@ -127,6 +116,7 @@ public class JakartaWhiteboardServletContainerAdapter implements ServletContaine
     private final BundleContext context;
     private ServiceRegistration<Servlet> registration;
     private ServiceRegistration<ServletContextHelper> contextRegistration;
+    private Thread registrationCheck;
 
     // Package-private rather than private so a test can construct its own instance directly, bypassing the
     // getInstance() singleton, without needing a real BundleContext/HttpServiceRuntime.
@@ -145,32 +135,27 @@ public class JakartaWhiteboardServletContainerAdapter implements ServletContaine
     public void setExecutorService(ExecutorService executorService) {
     }
 
-    @Override
-    public int addConnector(String host, int port) throws IOException {
-        return addConnector(host, port, PORT_DISCOVERY_TIMEOUT_MILLIS, PORT_DISCOVERY_POLL_MILLIS);
-    }
-
     /**
-     * Package-private overload taking the discovery timeout/poll interval explicitly, so a test can exercise
-     * the timeout-exceeded path (including the {@link IOException} below) without waiting out the real
-     * {@link #PORT_DISCOVERY_TIMEOUT_MILLIS} budget. {@link #addConnector(String, int)} delegates here with
-     * the real constants.
+     * Reads the port once and never waits for it. {@link JakartaWhiteboardSharedStreamServerProvider} is only
+     * active while the runtime already advertises an {@code http://} endpoint, so the port is normally there.
+     * Polling here would block the thread activating jUPnP, and during a bundle refresh that thread may be the
+     * one that has to restart Pax Web before the endpoint can appear at all.
      *
      * @throws IOException if {@code port} is {@code -1} (bind to whatever the Whiteboard is actually
-     *             listening on) and no usable endpoint could be discovered from {@link HttpServiceRuntime}
-     *             within {@code timeoutMillis} -- returning the caller's original, unbound {@code -1} instead
-     *             would violate {@code ServletContainerAdapter.addConnector()}'s "actual registered local
+     *             listening on) and no usable endpoint can be read from {@link HttpServiceRuntime}, e.g. because
+     *             the runtime went away concurrently -- returning the caller's original, unbound {@code -1}
+     *             instead would violate {@code ServletContainerAdapter.addConnector()}'s "actual registered local
      *             port" contract silently, leaving the router to advertise a callback URL nothing is actually
      *             listening on
      */
-    int addConnector(String host, int port, long timeoutMillis, long pollMillis) throws IOException {
+    @Override
+    public int addConnector(String host, int port) throws IOException {
         if (port == -1) {
-            Integer discovered = discoverPortFromRuntime(timeoutMillis, pollMillis);
+            Integer discovered = readPortFromRuntime();
             if (discovered == null) {
-                throw new IOException("Could not discover a usable HTTP endpoint from HttpServiceRuntime's "
-                        + HttpServiceRuntimeConstants.HTTP_SERVICE_ENDPOINT + " property within " + timeoutMillis
-                        + "ms -- check that a Jakarta HTTP Whiteboard implementation (e.g. Pax Web) is installed "
-                        + "and has finished starting");
+                throw new IOException("Could not read a usable http:// endpoint from HttpServiceRuntime's "
+                        + HttpServiceRuntimeConstants.HTTP_SERVICE_ENDPOINT + " property -- check that a Jakarta "
+                        + "HTTP Whiteboard implementation (e.g. Pax Web) is running");
             }
             port = discovered;
         }
@@ -184,37 +169,35 @@ public class JakartaWhiteboardServletContainerAdapter implements ServletContaine
      * javax.servlet {@code HttpServiceServletContainerAdapter} reads), this always reflects Pax Web's real
      * configuration, however it got configured, rather than depending on a deployment happening to also
      * mirror it as a framework property.
+     *
      * <p>
-     * Polls for up to {@code timeoutMillis}: the {@link HttpServiceRuntime} service can register slightly
-     * before its implementation has actually finished binding a listener and updated this property, so a
-     * single immediate read can race a runtime that's still starting up.
+     * Looks up the runtimes with the same {@link JakartaWhiteboardSharedStreamServerProvider#HTTP_ENDPOINT_FILTER}
+     * the provider's activation gate uses, so with more than one {@link HttpServiceRuntime} registered this reads
+     * the one that actually satisfied the gate, not just whichever ranks highest.
      * </p>
      *
-     * @return the port from the runtime's first plain {@code http://} endpoint, or {@code null} if none could
-     *         be determined within the timeout (e.g. the runtime only ever advertises a relative path
-     *         because its scheme/authority aren't known, as can happen in a bridged Whiteboard implementation)
+     * @return the port from the first plain {@code http://} endpoint of a matching runtime, or {@code null} if
+     *         there is none (e.g. the runtime only advertises a relative path because its scheme/authority aren't
+     *         known, as can happen in a bridged Whiteboard implementation)
      */
-    private Integer discoverPortFromRuntime(long timeoutMillis, long pollMillis) {
-        long deadline = System.currentTimeMillis() + timeoutMillis;
-        while (true) {
-            Integer port = readPortFromRuntime();
-            if (port != null || System.currentTimeMillis() >= deadline) {
+    private Integer readPortFromRuntime() {
+        Collection<ServiceReference<HttpServiceRuntime>> references;
+        try {
+            references = context.getServiceReferences(HttpServiceRuntime.class,
+                    JakartaWhiteboardSharedStreamServerProvider.HTTP_ENDPOINT_FILTER);
+        } catch (InvalidSyntaxException e) {
+            throw new IllegalStateException("Invalid HttpServiceRuntime endpoint filter", e);
+        }
+        for (ServiceReference<HttpServiceRuntime> reference : references) {
+            Integer port = readPort(reference);
+            if (port != null) {
                 return port;
             }
-            try {
-                Thread.sleep(pollMillis);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return null;
-            }
         }
+        return null;
     }
 
-    private Integer readPortFromRuntime() {
-        ServiceReference<HttpServiceRuntime> reference = context.getServiceReference(HttpServiceRuntime.class);
-        if (reference == null) {
-            return null;
-        }
+    private Integer readPort(ServiceReference<HttpServiceRuntime> reference) {
         Object endpoints = reference.getProperty(HttpServiceRuntimeConstants.HTTP_SERVICE_ENDPOINT);
         for (String endpoint : asStrings(endpoints)) {
             try {
@@ -255,8 +238,27 @@ public class JakartaWhiteboardServletContainerAdapter implements ServletContaine
             props.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_SELECT,
                     "(" + HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_NAME + "=" + CONTEXT_NAME + ")");
             registration = context.registerService(Servlet.class, servlet, props);
-            confirmWhiteboardPickedUpRegistration(contextPath, props, servlet);
+            startRegistrationCheck(contextPath, props, servlet);
         }
+    }
+
+    /**
+     * Runs {@link #checkWhiteboardPickedUpRegistration} on its own thread instead of the caller's: the caller is
+     * usually jUPnP's DS activation, and during a bundle refresh that same thread may still have to restart the
+     * Whiteboard implementation (or its extender) before it can pick anything up -- waiting here would only end
+     * once the timeout expired. Must be called holding this adapter's lock.
+     */
+    private void startRegistrationCheck(String contextPath, Dictionary<String, Object> props, Servlet servlet) {
+        Thread check = new Thread(() -> checkWhiteboardPickedUpRegistration(contextPath, props, servlet),
+                "jupnp-whiteboard-registration-check");
+        check.setDaemon(true);
+        registrationCheck = check;
+        check.start();
+    }
+
+    // Package-private so a test can wait for this specific adapter's check to end.
+    synchronized Thread getRegistrationCheck() {
+        return registrationCheck;
     }
 
     /**
@@ -283,79 +285,95 @@ public class JakartaWhiteboardServletContainerAdapter implements ServletContaine
      * re-registering (a fresh unregister + register) gives the Whiteboard's {@code ServiceTracker} another,
      * unambiguous event to react to, in case its initial scan for already-registered services raced this
      * registration and missed it.
-     *
-     * @throws InitializationException if the Whiteboard still hasn't picked up the registration after the
-     *             re-register and {@link #REREGISTER_CONFIRM_TIMEOUT_MILLIS} grace period -- see
-     *             {@link #logFinalRegistrationOutcome} -- or if interrupted while waiting: an unconfirmed
-     *             registration must not be allowed to look like success just because the wait was cut short
+     * <p>
+     * Runs on the thread started by {@link #startRegistrationCheck}, so it can no longer fail the router's
+     * initialization: if the Whiteboard still hasn't picked up the registration after the re-register and the
+     * {@link #REREGISTER_CONFIRM_TIMEOUT_MILLIS} grace period, it logs an error plus the Whiteboard's own
+     * diagnostics, and leaves the registration in place in case the Whiteboard picks it up later.
+     * {@link #stopIfRunning} cancels it by interrupting the thread.
+     * </p>
      */
-    private void confirmWhiteboardPickedUpRegistration(String contextPath, Dictionary<String, Object> props,
+    private void checkWhiteboardPickedUpRegistration(String contextPath, Dictionary<String, Object> props,
             Servlet servlet) {
-        long deadline = System.currentTimeMillis() + REGISTRATION_CONFIRM_TIMEOUT_MILLIS;
-        while (!isPickedUpByWhiteboard(contextPath) && System.currentTimeMillis() < deadline) {
-            try {
-                Thread.sleep(REGISTRATION_CONFIRM_POLL_MILLIS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                unregisterServletAndContext();
-                throw new InitializationException(
-                        "Interrupted while waiting for the Whiteboard to pick up the servlet registration for "
-                                + contextPath,
-                        e);
+        try {
+            if (waitUntilPickedUpByWhiteboard(contextPath, REGISTRATION_CONFIRM_TIMEOUT_MILLIS)) {
+                logger.debug("Whiteboard picked up the servlet registration for {}", contextPath);
+                return;
             }
-        }
-        if (!isPickedUpByWhiteboard(contextPath)) {
-            logger.warn(
-                    "Whiteboard hasn't picked up the servlet registration for {} within {}ms, re-registering as a last resort",
-                    contextPath, REGISTRATION_CONFIRM_TIMEOUT_MILLIS);
-            registration.unregister();
-            registration = context.registerService(Servlet.class, servlet, props);
-            logFinalRegistrationOutcome(contextPath);
+            synchronized (this) {
+                if (!isCurrentRegistrationCheck()) {
+                    return;
+                }
+                logger.warn(
+                        "Whiteboard hasn't picked up the servlet registration for {} within {}ms, re-registering as a last resort",
+                        contextPath, REGISTRATION_CONFIRM_TIMEOUT_MILLIS);
+                // Clear the field before unregistering, so if registerService() below throws (e.g. this bundle
+                // is stopping), it doesn't keep pointing at an already-unregistered registration that
+                // stopIfRunning() would then try to unregister a second time.
+                ServiceRegistration<Servlet> previous = registration;
+                registration = null;
+                previous.unregister();
+                registration = context.registerService(Servlet.class, servlet, props);
+            }
+            if (waitUntilPickedUpByWhiteboard(contextPath, REREGISTER_CONFIRM_TIMEOUT_MILLIS)) {
+                logger.info("Whiteboard picked up the re-registered servlet for {}", contextPath);
+                return;
+            }
+            Long servletServiceId;
+            Long contextServiceId;
+            synchronized (this) {
+                if (!isCurrentRegistrationCheck()) {
+                    return;
+                }
+                servletServiceId = serviceId(registration);
+                contextServiceId = serviceId(contextRegistration);
+            }
+            logger.error("Whiteboard still hasn't picked up the UPnP callback servlet registration for {} after "
+                    + "re-registering -- jUPnP will not receive any HTTP callbacks (e.g. GENA events) until it does",
+                    contextPath);
+            logRegistrationDiagnostics(contextPath, servletServiceId, contextServiceId);
+        } catch (InterruptedException e) {
+            // Cancelled by stopIfRunning()
+            Thread.currentThread().interrupt();
+        } catch (IllegalStateException e) {
+            // This bundle's context became invalid, i.e. the bundle is stopping
+            logger.debug("Stopped checking the Whiteboard registration for {}", contextPath, e);
+        } catch (RuntimeException e) {
+            // E.g. the Whiteboard failing while it's being restarted -- log it here, since an exception escaping
+            // this thread would only reach stderr
+            logger.warn("Failed to check whether the Whiteboard picked up the servlet registration for {}", contextPath,
+                    e);
+        } finally {
+            synchronized (this) {
+                if (registrationCheck == Thread.currentThread()) {
+                    registrationCheck = null;
+                }
+            }
         }
     }
 
-    /**
-     * After the last-resort re-register, either confirms success or gives up for good: at this point the
-     * Whiteboard has had the full {@link #REGISTRATION_CONFIRM_TIMEOUT_MILLIS} budget plus another
-     * {@link #REREGISTER_CONFIRM_TIMEOUT_MILLIS} to react to an unambiguous, freshly re-registered service --
-     * continuing to run with the callback servlet unconfirmed would leave the router enabled and advertising a
-     * callback endpoint that isn't actually reachable, turning a clear startup problem into GENA callbacks
-     * silently going missing later. Unregisters the never-confirmed servlet/context first, so a later retry
-     * (e.g. the router restarting this stream server) doesn't find {@link #registration} already non-null and
-     * silently skip re-registering in {@link #registerServlet}.
-     *
-     * @throws InitializationException if the Whiteboard still hasn't picked up the registration, or if
-     *             interrupted while waiting -- see {@link #confirmWhiteboardPickedUpRegistration}
-     */
-    private void logFinalRegistrationOutcome(String contextPath) {
-        long deadline = System.currentTimeMillis() + REREGISTER_CONFIRM_TIMEOUT_MILLIS;
-        while (!isPickedUpByWhiteboard(contextPath) && System.currentTimeMillis() < deadline) {
-            try {
-                Thread.sleep(REGISTRATION_CONFIRM_POLL_MILLIS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                unregisterServletAndContext();
-                throw new InitializationException(
-                        "Interrupted while waiting for the Whiteboard to pick up the re-registered servlet for "
-                                + contextPath,
-                        e);
+    private boolean waitUntilPickedUpByWhiteboard(String contextPath, long timeoutMillis) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (!isPickedUpByWhiteboard(contextPath)) {
+            if (System.currentTimeMillis() >= deadline) {
+                return false;
             }
+            Thread.sleep(REGISTRATION_CONFIRM_POLL_MILLIS);
         }
-        if (isPickedUpByWhiteboard(contextPath)) {
-            logger.info("Whiteboard picked up the re-registered servlet for {}", contextPath);
-            return;
-        }
-        logger.warn("Whiteboard still hasn't picked up the servlet registration for {} after re-registering -- "
-                + "failing initialization", contextPath);
-        logRegistrationDiagnostics(contextPath);
-        unregisterServletAndContext();
-        throw new InitializationException("Whiteboard never picked up the UPnP callback servlet registration for "
-                + contextPath + " -- see the Whiteboard diagnostics logged above");
+        return true;
+    }
+
+    /**
+     * @return whether the calling thread is still the active {@link #registrationCheck}, i.e. hasn't been
+     *         superseded or cancelled by {@link #stopIfRunning} -- must be called holding this adapter's lock
+     */
+    private boolean isCurrentRegistrationCheck() {
+        return registrationCheck == Thread.currentThread() && registration != null;
     }
 
     /**
      * Dumps the Whiteboard's own view of what happened to the registration when
-     * {@link #logFinalRegistrationOutcome} gives up: {@code calculateRequestInfoDTO} only tells us the servlet
+     * {@link #checkWhiteboardPickedUpRegistration} gives up: {@code calculateRequestInfoDTO} only tells us the servlet
      * wasn't matched, not why -- a pattern conflict with another webapp, a missing default context, or similar
      * is reported by the Whiteboard as a {@code FailedServletDTO} (or, if the dedicated
      * {@link ServletContextHelper} itself was the one rejected, a {@code FailedServletContextDTO}) instead,
@@ -371,7 +389,7 @@ public class JakartaWhiteboardServletContainerAdapter implements ServletContaine
      * its servlet failing.
      * </p>
      */
-    private void logRegistrationDiagnostics(String contextPath) {
+    private void logRegistrationDiagnostics(String contextPath, Long servletServiceId, Long contextServiceId) {
         ServiceReference<HttpServiceRuntime> reference = context.getServiceReference(HttpServiceRuntime.class);
         if (reference == null) {
             logger.warn("No HttpServiceRuntime service available to diagnose the {} registration", contextPath);
@@ -384,7 +402,6 @@ public class JakartaWhiteboardServletContainerAdapter implements ServletContaine
         }
         try {
             RuntimeDTO runtimeDTO = runtime.getRuntimeDTO();
-            Long servletServiceId = serviceId(registration);
             for (FailedServletDTO failed : runtimeDTO.failedServletDTOs) {
                 if (servletServiceId != null && failed.serviceId == servletServiceId) {
                     logger.warn(
@@ -393,7 +410,6 @@ public class JakartaWhiteboardServletContainerAdapter implements ServletContaine
                             contextPath, failed.serviceId, Arrays.asList(failed.patterns), failed.failureReason);
                 }
             }
-            Long contextServiceId = serviceId(contextRegistration);
             for (FailedServletContextDTO failed : runtimeDTO.failedServletContextDTOs) {
                 if ((contextServiceId != null && failed.serviceId == contextServiceId)
                         || CONTEXT_NAME.equals(failed.name)) {
@@ -450,6 +466,10 @@ public class JakartaWhiteboardServletContainerAdapter implements ServletContaine
 
     @Override
     public synchronized void stopIfRunning() {
+        if (registrationCheck != null) {
+            registrationCheck.interrupt();
+            registrationCheck = null;
+        }
         unregisterServletAndContext();
     }
 
