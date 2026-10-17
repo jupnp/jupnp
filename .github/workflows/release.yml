@@ -132,9 +132,11 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-          server-id: central
+          server-id: sonatype-central
           server-username: CENTRAL_USERNAME
           server-password: CENTRAL_PASSWORD
+          mvn-server-repository-origins: |
+            sonatype-central:https://central.sonatype.com
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: GPG_PASSPHRASE
 
