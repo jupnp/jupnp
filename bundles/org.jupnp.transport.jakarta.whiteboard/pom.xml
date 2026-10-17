@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.jupnp.pom</groupId>
+    <artifactId>bundles</artifactId>
+    <version>4.0.0-SNAPSHOT</version>
+  </parent>
+
+  <groupId>org.jupnp</groupId>
+  <artifactId>org.jupnp.transport.jakarta.whiteboard</artifactId>
+
+  <name>jUPnP OSGi Jakarta HTTP Whiteboard Bridge</name>
+
+  <properties>
+    <basedirRoot>../..</basedirRoot>
+    <maven.compiler.release>17</maven.compiler.release>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.jupnp</groupId>
+      <artifactId>org.jupnp</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
+    <!--
+      For ServletStreamServerImpl/ServletContainerAdapter/AsyncServlet: registering a jakarta.servlet.Servlet
+      via the OSGi HTTP Whiteboard still needs the generic jakarta servlet transport support.
+    -->
+    <dependency>
+      <groupId>org.jupnp</groupId>
+      <artifactId>org.jupnp.transport.jakarta.servlet</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
+    <!--
+      OSGi Compendium R8's HTTP Whiteboard Service for Jakarta Servlet (org.osgi.service.servlet):
+      postdates osgi.cmpn ${osgi.version}, so it's a standalone artifact rather than coming from that.
+      This is what a Whiteboard-implementing runtime (e.g. Pax Web 11+) tracks servlet registrations
+      through: there is no more registerServlet()-style call, just an OSGi service with these
+      properties, unlike the classic HttpService this bridge's javax.servlet sibling
+      (org.jupnp.transport.javax.httpservice) uses.
+    -->
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.servlet</artifactId>
+      <version>${osgi.service.servlet.version}</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>${slf4j.version}</version>
+      <scope>compile</scope>
+    </dependency>
+  </dependencies>
+
+</project>
