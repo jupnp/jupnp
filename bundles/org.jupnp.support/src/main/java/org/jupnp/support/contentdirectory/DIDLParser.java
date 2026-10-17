@@ -22,7 +22,6 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.net.URI;
 
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
@@ -43,6 +42,7 @@ import org.jupnp.support.model.StorageMedium;
 import org.jupnp.support.model.WriteStatus;
 import org.jupnp.support.model.container.Container;
 import org.jupnp.support.model.item.Item;
+import org.jupnp.transport.impl.PooledXmlProcessor;
 import org.jupnp.util.io.IO;
 import org.jupnp.xml.SAXParser;
 import org.slf4j.Logger;
@@ -80,6 +80,49 @@ public class DIDLParser extends SAXParser {
     private final Logger logger = LoggerFactory.getLogger(DIDLParser.class);
 
     public static final String UNKNOWN_TITLE = "Unknown Title";
+
+    private static final TransformerFactory TRANSFORMER_FACTORY = TransformerFactory.newInstance();
+
+    private static final ThreadLocal<Transformer> TRANSFORMER_WITH_PROLOG = ThreadLocal.withInitial(() -> {
+        try {
+            synchronized (TRANSFORMER_FACTORY) {
+                return TRANSFORMER_FACTORY.newTransformer();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create transformer", e);
+        }
+    });
+
+    private static final ThreadLocal<Transformer> TRANSFORMER_WITHOUT_PROLOG = ThreadLocal.withInitial(() -> {
+        try {
+            Transformer transformer;
+            synchronized (TRANSFORMER_FACTORY) {
+                transformer = TRANSFORMER_FACTORY.newTransformer();
+            }
+            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+            return transformer;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create transformer", e);
+        }
+    });
+
+    /**
+     * Pooled XML processor for efficient DocumentBuilder reuse.
+     */
+    private static final DocumentBuilderPool XML_PROCESSOR = new DocumentBuilderPool();
+
+    /**
+     * Provide pooled DocumentBuilder instances.
+     */
+    private static class DocumentBuilderPool extends PooledXmlProcessor {
+        public Document createNewDocument() {
+            try {
+                return newDocument();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to create document", e);
+            }
+        }
+    }
 
     /**
      * Uses the current thread's context classloader to read and unmarshall the given resource.
@@ -300,38 +343,20 @@ public class DIDLParser extends SAXParser {
     // TODO: Yes, this only runs on Android 2.2
 
     protected String documentToString(Document document, boolean omitProlog) throws Exception {
-        TransformerFactory transFactory = TransformerFactory.newInstance();
+        // TODO: UPNP VIOLATION: Terratec Noxon Webradio fails when DIDL content has a prolog
+        // No XML prolog! This is allowed because it is UTF-8 encoded and required
+        // because broken devices will stumble on SOAP messages that contain (even
+        // encoded) XML prologs within a message body.
 
-        // Indentation not supported on Android 2.2
-        // transFactory.setAttribute("indent-number", 4);
-
-        Transformer transformer = transFactory.newTransformer();
-
-        if (omitProlog) {
-            // TODO: UPNP VIOLATION: Terratec Noxon Webradio fails when DIDL content has a prolog
-            // No XML prolog! This is allowed because it is UTF-8 encoded and required
-            // because broken devices will stumble on SOAP messages that contain (even
-            // encoded) XML prologs within a message body.
-            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
-        }
-
-        // Again, Android 2.2 fails hard if you try this.
-        // transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-
+        Transformer transformer = omitProlog ? TRANSFORMER_WITHOUT_PROLOG.get() : TRANSFORMER_WITH_PROLOG.get();
         StringWriter out = new StringWriter();
         transformer.transform(new DOMSource(document), new StreamResult(out));
         return out.toString();
     }
 
     protected Document buildDOM(DIDLContent content, boolean nestedItems) throws Exception {
-
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setNamespaceAware(true);
-
-        Document d = factory.newDocumentBuilder().newDocument();
-
+        Document d = XML_PROCESSOR.createNewDocument();
         generateRoot(content, d, nestedItems);
-
         return d;
     }
 
