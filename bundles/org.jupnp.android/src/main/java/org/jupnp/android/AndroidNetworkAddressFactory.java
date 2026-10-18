@@ -34,7 +34,11 @@ import org.slf4j.LoggerFactory;
  */
 public class AndroidNetworkAddressFactory extends NetworkAddressFactoryImpl {
 
-    private final Logger logger = LoggerFactory.getLogger(AndroidNetworkAddressFactory.class);
+    // Must be static: discoverNetworkInterfaces() and isUsableAddress() are called from
+    // NetworkAddressFactoryImpl's constructor, before this subclass' instance fields are
+    // initialized. Logging a failure through a null field throws a NullPointerException
+    // instead of reporting the failure and the overrides' recovery paths never run.
+    private static final Logger logger = LoggerFactory.getLogger(AndroidNetworkAddressFactory.class);
 
     public AndroidNetworkAddressFactory(int streamListenPort, int multicastResponsePort) {
         super(streamListenPort, multicastResponsePort);
