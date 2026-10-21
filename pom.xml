@@ -76,9 +76,8 @@
     <bnd.testing.runee>JavaSE-11</bnd.testing.runee>
     <bnd.testing.resolve>true</bnd.testing.resolve>
 
-    <spotless.version>2.44.3</spotless.version>
-    <!-- Eclipse Java formatter version 4.26+ does not check test files -->
-    <spotless.eclipse.version>4.25</spotless.eclipse.version>
+    <spotless.version>3.10.4</spotless.version>
+    <spotless.eclipse.version>4.41</spotless.eclipse.version>
     <spotless.eclipse.wtp.version>4.21.0</spotless.eclipse.wtp.version>
   </properties>
 
@@ -311,10 +310,6 @@
 
     <plugins>
       <plugin>
-        <groupId>com.diffplug.spotless</groupId>
-        <artifactId>spotless-maven-plugin</artifactId>
-      </plugin>
-      <plugin>
         <groupId>com.mycila</groupId>
         <artifactId>license-maven-plugin</artifactId>
         <executions>
@@ -384,6 +379,22 @@
         </plugins>
       </build>
     </profile>
+
+    <profile>
+      <id>spotless-java17-plus</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>com.diffplug.spotless</groupId>
+            <artifactId>spotless-maven-plugin</artifactId>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
   </profiles>
 
 </project>
