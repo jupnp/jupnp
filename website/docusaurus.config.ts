@@ -42,7 +42,19 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/jupnp/jupnp/edit/main/website',
+          editUrl: ({versionDocsDirPath, docPath}) => `https://github.com/jupnp/jupnp/edit/main/website/${versionDocsDirPath}/${docPath}`,
+          includeCurrentVersion: true,
+          lastVersion: '3.x',
+          versions: {
+            'current': {
+              label: '4.x',
+              banner: 'none',
+            },
+            '3.x': {
+              label: '3.x',
+              banner: 'none',
+            },
+          },
         },
         blog: {
           showReadingTime: true,
@@ -56,7 +68,7 @@ const config: Config = {
   ],
 
   plugins: [[require.resolve('docusaurus-lunr-search'), {
-    disableVersioning: true
+    disableVersioning: false
   }]],
 
   themes: [
@@ -80,6 +92,10 @@ const config: Config = {
         src: 'img/logo.png',
       },
       items: [
+        {
+          type: 'docsVersionDropdown',
+          position: 'left',
+        },
         {
           type: 'docSidebar',
           sidebarId: 'jupnpSidebar',
