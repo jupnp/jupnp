@@ -34,7 +34,8 @@ import org.slf4j.LoggerFactory;
  */
 public class AndroidNetworkAddressFactory extends NetworkAddressFactoryImpl {
 
-    private final Logger logger = LoggerFactory.getLogger(AndroidNetworkAddressFactory.class);
+    // Used during superclass construction, before instance fields are initialized.
+    private static final Logger LOGGER = LoggerFactory.getLogger(AndroidNetworkAddressFactory.class);
 
     public AndroidNetworkAddressFactory(int streamListenPort, int multicastResponsePort) {
         super(streamListenPort, multicastResponsePort);
@@ -77,7 +78,7 @@ public class AndroidNetworkAddressFactory extends NetworkAddressFactoryImpl {
                 }
 
             } catch (Exception e) {
-                logger.error("Failed injecting hostName to work around Android InetAddress DNS bug: {}", address, e);
+                LOGGER.error("Failed injecting hostName to work around Android InetAddress DNS bug: {}", address, e);
                 return false;
             }
         }
@@ -106,7 +107,7 @@ public class AndroidNetworkAddressFactory extends NetworkAddressFactoryImpl {
         } catch (Exception e) {
             // TODO: ICS bug on some models with network interface disappearing while enumerated
             // http://code.google.com/p/android/issues/detail?id=33661
-            logger.warn("Exception while enumerating network interfaces, trying once more", e);
+            LOGGER.warn("Exception while enumerating network interfaces, trying once more", e);
             super.discoverNetworkInterfaces();
         }
     }
