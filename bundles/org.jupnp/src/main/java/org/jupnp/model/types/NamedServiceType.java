@@ -15,6 +15,8 @@
  */
 package org.jupnp.model.types;
 
+import java.util.regex.Pattern;
+
 /**
  * Combines a {@link UDN} with a {@link ServiceType}, string representation
  * is separated by double-colon.
@@ -22,6 +24,8 @@ package org.jupnp.model.types;
  * @author Christian Bauer
  */
 public class NamedServiceType {
+
+    public static final Pattern PATTERN_DELIMITER = Pattern.compile("::");
 
     private UDN udn;
     private ServiceType serviceType;
@@ -40,7 +44,7 @@ public class NamedServiceType {
     }
 
     public static NamedServiceType valueOf(String s) throws InvalidValueException {
-        String[] strings = s.split("::");
+        String[] strings = PATTERN_DELIMITER.split(s, 3);
         if (strings.length != 2) {
             throw new InvalidValueException("Can't parse UDN::ServiceType from: " + s);
         }
