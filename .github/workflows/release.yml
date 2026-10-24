@@ -34,7 +34,7 @@ env:
 jobs:
   prepare-release:
     name: Prepare release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout default branch
@@ -115,7 +115,7 @@ jobs:
   publish:
     name: Publish to Maven Central
     needs: prepare-release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 90
 
     steps:
@@ -133,8 +133,8 @@ jobs:
           java-version: '17'
           cache: maven
           server-id: sonatype-central
-          server-username: CENTRAL_USERNAME
-          server-password: CENTRAL_PASSWORD
+          server-username-env-var: CENTRAL_USERNAME
+          server-password-env-var: CENTRAL_PASSWORD
           mvn-server-repository-origins: |
             sonatype-central:https://central.sonatype.com
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
@@ -150,7 +150,7 @@ jobs:
   finalize-release:
     name: Create GitHub release and next snapshot
     needs: publish
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout default branch
