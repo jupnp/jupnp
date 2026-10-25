@@ -311,7 +311,7 @@ public class UDA10DeviceDescriptorBinderImpl implements DeviceDescriptorBinder, 
                             icon.depth = Integer.parseInt(depth);
                         } catch (NumberFormatException e) {
                             SpecificationViolationReporter.report("Invalid icon depth '{}', using 16 as default: {}",
-                                    depth, e);
+                                    depth, e.getMessage());
                             icon.depth = 16;
                         }
                     } else if (ELEMENT.url.equals(iconChild)) {
@@ -621,7 +621,7 @@ public class UDA10DeviceDescriptorBinderImpl implements DeviceDescriptorBinder, 
             //
             return URI.create("./" + uri);
         } catch (IllegalArgumentException e) {
-            SpecificationViolationReporter.report("Illegal URI '{}', ignoring value", uri, e);
+            SpecificationViolationReporter.report("Illegal URI '{}', ignoring value: {}", uri, e.getMessage());
             // Ignore
         }
         return null;

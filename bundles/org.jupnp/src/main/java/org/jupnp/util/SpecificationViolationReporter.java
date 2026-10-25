@@ -50,21 +50,23 @@ public class SpecificationViolationReporter {
         enabled = true;
     }
 
+    // The arguments are passed to SLF4J as one flat array; passing the array next to other arguments would log it as a
+    // single "[a, b]" argument and leave the remaining placeholders unreplaced.
     private void _report(String format, Object... arguments) {
         if (enabled) {
-            String logFormat = "{}: " + format;
-            logger.warn(logFormat, "UPnP specification violation", arguments);
+            logger.warn("UPnP specification violation: " + format, arguments);
         }
     }
 
     private void _report(Device<DeviceIdentity, Device, Service> device, String format, Object... arguments) {
         if (enabled) {
             if (device == null) {
-                String logFormat = "{}: " + format;
-                logger.warn(logFormat, "UPnP specification violation", arguments);
-            } else {
-                String logFormat = "{} of device '{}': " + format;
-                logger.warn(logFormat, "UPnP specification violation", device, arguments);
+                _report(format, arguments);
+            } else if (logger.isWarnEnabled()) {
+                Object[] deviceAndArguments = new Object[arguments.length + 1];
+                deviceAndArguments[0] = device;
+                System.arraycopy(arguments, 0, deviceAndArguments, 1, arguments.length);
+                logger.warn("UPnP specification violation of device '{}': " + format, deviceAndArguments);
             }
         }
     }
@@ -77,10 +79,18 @@ public class SpecificationViolationReporter {
         INSTANCE._enableReporting();
     }
 
+    /**
+     * Logs a specification violation as a warning, using SLF4J's {@code {}} placeholders in {@code format}. As with
+     * SLF4J, a {@link Throwable} as the last argument is logged as the exception with its stack trace and does not
+     * fill a placeholder, so pass e.g. its message instead to keep the report on a single line.
+     */
     public static void report(String format, Object... arguments) {
         INSTANCE._report(format, arguments);
     }
 
+    /**
+     * Same as {@link #report(String, Object...)}, but names the device the violation was found in.
+     */
     public static void report(Device<DeviceIdentity, Device, Service> device, String format, Object... arguments) {
         INSTANCE._report(device, format, arguments);
     }

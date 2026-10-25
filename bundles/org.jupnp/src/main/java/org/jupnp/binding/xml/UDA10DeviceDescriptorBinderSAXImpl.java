@@ -295,7 +295,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                         getInstance().depth = Integer.parseInt(getCharacters());
                     } catch (NumberFormatException e) {
                         SpecificationViolationReporter.report("Invalid icon depth '{}', using 16 as default: {}",
-                                getCharacters(), e);
+                                getCharacters(), e.getMessage());
                         getInstance().depth = 16;
                     }
                     break;
