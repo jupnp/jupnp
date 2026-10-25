@@ -33,33 +33,25 @@ import org.slf4j.LoggerFactory;
 
 /**
  * This is a servlet container adapter for an OSGi http service.
- * It is a singleton as there will be only a single OSGi http service available to register servlets on
- * 
+ * An instance is bound to one {@link HttpService}; when the http service is replaced (e.g. the http runtime is
+ * restarted), a new adapter has to be created for the new service.
+ *
  * @author Kai Kreuzer
  * @author Ivan Iliev - No longer a singleton
+ * @author Holger Friedrich - Bind to a single HttpService instead of a static singleton
  *
  */
 public class HttpServiceServletContainerAdapter implements ServletContainerAdapter {
 
     private final Logger logger = LoggerFactory.getLogger(HttpServiceServletContainerAdapter.class);
 
-    private static HttpServiceServletContainerAdapter instance = null;
-
-    protected HttpService httpService;
-    private BundleContext context;
+    private final HttpService httpService;
+    private final BundleContext context;
     private String contextPath;
 
-    private HttpServiceServletContainerAdapter(HttpService httpService, BundleContext context) {
+    HttpServiceServletContainerAdapter(HttpService httpService, BundleContext context) {
         this.httpService = httpService;
         this.context = context;
-    }
-
-    public static synchronized HttpServiceServletContainerAdapter getInstance(HttpService httpService,
-            BundleContext context) {
-        if (instance == null) {
-            instance = new HttpServiceServletContainerAdapter(httpService, context);
-        }
-        return instance;
     }
 
     @Override
@@ -78,7 +70,7 @@ public class HttpServiceServletContainerAdapter implements ServletContainerAdapt
     }
 
     @Override
-    public void registerServlet(String contextPath, Servlet servlet) {
+    public synchronized void registerServlet(String contextPath, Servlet servlet) {
         if (this.contextPath == null) {
             Dictionary<Object, Object> params = new Properties();
             try {
@@ -99,10 +91,14 @@ public class HttpServiceServletContainerAdapter implements ServletContainerAdapt
     }
 
     @Override
-    public void stopIfRunning() {
+    public synchronized void stopIfRunning() {
         if (this.contextPath != null) {
-            httpService.unregister(this.contextPath);
-            this.contextPath = null;
+            try {
+                httpService.unregister(this.contextPath);
+            } finally {
+                // e.g. an already stopping http runtime might refuse the unregistration, don't try again
+                this.contextPath = null;
+            }
         }
     }
 }

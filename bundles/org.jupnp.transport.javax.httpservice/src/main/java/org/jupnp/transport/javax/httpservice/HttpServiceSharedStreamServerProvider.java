@@ -22,8 +22,11 @@ import org.jupnp.transport.spi.StreamServer;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.http.HttpService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Bridges {@link org.jupnp.OSGiUpnpServiceConfiguration} to the classic OSGi HttpService: registered as a
@@ -44,26 +47,37 @@ import org.osgi.service.http.HttpService;
 @Component(service = SharedStreamServerProvider.class)
 public class HttpServiceSharedStreamServerProvider implements SharedStreamServerProvider {
 
-    private HttpService httpService;
-    private BundleContext context;
+    private final Logger logger = LoggerFactory.getLogger(HttpServiceSharedStreamServerProvider.class);
 
-    @Activate
-    protected void activate(BundleContext context) {
-        this.context = context;
-    }
+    private HttpService httpService;
+    // shared by all stream servers created from this provider, so the callback servlet is registered only once;
+    // bound to the HttpService of this component instance, a replaced HttpService gets a new component instance
+    private HttpServiceServletContainerAdapter servletContainerAdapter;
 
     @Reference
     protected void setHttpService(HttpService httpService) {
         this.httpService = httpService;
     }
 
-    protected void unsetHttpService(HttpService httpService) {
-        this.httpService = null;
+    @Activate
+    protected void activate(BundleContext context) {
+        // the static, mandatory HttpService reference is bound before activation
+        servletContainerAdapter = new HttpServiceServletContainerAdapter(httpService, context);
+    }
+
+    @Deactivate
+    protected void deactivate() {
+        // normally already done by the stream servers, but a new component instance must not find it registered
+        try {
+            servletContainerAdapter.stopIfRunning();
+        } catch (RuntimeException e) {
+            logger.warn("Failed to unregister the UPnP callback servlet", e);
+        }
     }
 
     @Override
     public StreamServer<?> createStreamServer(int proxyPort) {
-        return new ServletStreamServerImpl(new ServletStreamServerConfigurationImpl(
-                HttpServiceServletContainerAdapter.getInstance(httpService, context), proxyPort));
+        return new ServletStreamServerImpl(
+                new ServletStreamServerConfigurationImpl(servletContainerAdapter, proxyPort));
     }
 }

@@ -53,8 +53,10 @@ import jakarta.servlet.Servlet;
  * Unlike {@code HttpService.registerServlet()}, the Whiteboard pattern has no explicit registration call at
  * all: a {@link Servlet} becomes visible to the runtime purely by being published as an OSGi service with the
  * right {@code osgi.http.whiteboard.*} properties, which a Whiteboard implementation tracks and wires up on
- * its own. This adapter is a singleton for the same reason
- * {@code HttpServiceServletContainerAdapter} is -- there's only one shared HTTP runtime to register against.
+ * its own. Like {@code HttpServiceServletContainerAdapter}, one instance is shared by all stream servers of a
+ * {@link JakartaWhiteboardSharedStreamServerProvider} component instance (there's only one shared HTTP runtime to
+ * register against), but it is not a static singleton: it is bound to that component's {@link BundleContext},
+ * which becomes invalid when the bundle is restarted.
  * </p>
  * <p>
  * The registered servlet is deliberately kept off the Whiteboard's default {@code ServletContextHelper}: this
@@ -82,8 +84,6 @@ import jakarta.servlet.Servlet;
 public class JakartaWhiteboardServletContainerAdapter implements ServletContainerAdapter {
 
     private final Logger logger = LoggerFactory.getLogger(JakartaWhiteboardServletContainerAdapter.class);
-
-    private static JakartaWhiteboardServletContainerAdapter instance;
 
     /**
      * How long to wait for the Whiteboard to pick up a registration, see
@@ -118,17 +118,9 @@ public class JakartaWhiteboardServletContainerAdapter implements ServletContaine
     private ServiceRegistration<ServletContextHelper> contextRegistration;
     private Thread registrationCheck;
 
-    // Package-private rather than private so a test can construct its own instance directly, bypassing the
-    // getInstance() singleton, without needing a real BundleContext/HttpServiceRuntime.
+    // package-private: only the provider (and tests) create adapters, bound to the provider's BundleContext
     JakartaWhiteboardServletContainerAdapter(BundleContext context) {
         this.context = context;
-    }
-
-    public static synchronized JakartaWhiteboardServletContainerAdapter getInstance(BundleContext context) {
-        if (instance == null) {
-            instance = new JakartaWhiteboardServletContainerAdapter(context);
-        }
-        return instance;
     }
 
     @Override

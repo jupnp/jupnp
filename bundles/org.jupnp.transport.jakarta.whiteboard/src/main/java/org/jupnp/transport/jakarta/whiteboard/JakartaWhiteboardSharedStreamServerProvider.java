@@ -22,9 +22,12 @@ import org.jupnp.transport.spi.StreamServer;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.servlet.runtime.HttpServiceRuntime;
 import org.osgi.service.servlet.runtime.HttpServiceRuntimeConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Bridges {@link org.jupnp.OSGiUpnpServiceConfiguration} to the OSGi HTTP Whiteboard Service for Jakarta
@@ -67,11 +70,26 @@ public class JakartaWhiteboardSharedStreamServerProvider implements SharedStream
      */
     static final String HTTP_ENDPOINT_FILTER = "(" + HttpServiceRuntimeConstants.HTTP_SERVICE_ENDPOINT + "=http://*)";
 
-    private BundleContext context;
+    private final Logger logger = LoggerFactory.getLogger(JakartaWhiteboardSharedStreamServerProvider.class);
+
+    // shared by all stream servers created from this provider, so the callback servlet is registered only once;
+    // bound to the BundleContext of this component instance
+    private JakartaWhiteboardServletContainerAdapter servletContainerAdapter;
 
     @Activate
     protected void activate(BundleContext context) {
-        this.context = context;
+        servletContainerAdapter = new JakartaWhiteboardServletContainerAdapter(context);
+    }
+
+    @Deactivate
+    protected void deactivate() {
+        // normally already done by the stream servers, but a new component instance must not find its servlet,
+        // context or registration check left behind
+        try {
+            servletContainerAdapter.stopIfRunning();
+        } catch (RuntimeException e) {
+            logger.warn("Failed to unregister the UPnP callback servlet", e);
+        }
     }
 
     @Reference(target = HTTP_ENDPOINT_FILTER)
@@ -81,12 +99,9 @@ public class JakartaWhiteboardSharedStreamServerProvider implements SharedStream
         // discover Pax Web's actual bound port, rather than being handed this particular binding.
     }
 
-    protected void unsetHttpServiceRuntime(HttpServiceRuntime httpServiceRuntime) {
-    }
-
     @Override
     public StreamServer<?> createStreamServer(int proxyPort) {
-        return new ServletStreamServerImpl(new ServletStreamServerConfigurationImpl(
-                JakartaWhiteboardServletContainerAdapter.getInstance(context), proxyPort));
+        return new ServletStreamServerImpl(
+                new ServletStreamServerConfigurationImpl(servletContainerAdapter, proxyPort));
     }
 }
