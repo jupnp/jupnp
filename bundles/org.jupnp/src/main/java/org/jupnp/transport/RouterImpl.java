@@ -139,6 +139,12 @@ public class RouterImpl implements Router {
                     return true;
                 } catch (InitializationException e) {
                     handleStartFailure(e);
+                } finally {
+                    if (!enabled) {
+                        // transports started before any failure would otherwise keep running, as disable() only
+                        // cleans up an enabled router
+                        stopTransports();
+                    }
                 }
             }
             return false;
@@ -153,38 +159,53 @@ public class RouterImpl implements Router {
         try {
             if (enabled) {
                 logger.debug("Disabling network services...");
-
-                if (streamClient != null) {
-                    logger.debug("Stopping stream client connection management/pool");
-                    streamClient.stop();
-                    streamClient = null;
-                }
-
-                for (Map.Entry<InetAddress, StreamServer> entry : streamServers.entrySet()) {
-                    logger.debug("Stopping stream server on address: {}", entry.getKey());
-                    entry.getValue().stop();
-                }
-                streamServers.clear();
-
-                for (Map.Entry<NetworkInterface, MulticastReceiver> entry : multicastReceivers.entrySet()) {
-                    logger.debug("Stopping multicast receiver on interface: {}", entry.getKey().getDisplayName());
-                    entry.getValue().stop();
-                }
-                multicastReceivers.clear();
-
-                for (Map.Entry<InetAddress, DatagramIO> entry : datagramIOs.entrySet()) {
-                    logger.debug("Stopping datagram I/O on address: {}", entry.getKey());
-                    entry.getValue().stop();
-                }
-                datagramIOs.clear();
-
-                networkAddressFactory = null;
+                stopTransports();
                 enabled = false;
                 return true;
             }
             return false;
         } finally {
             unlock(writeLock);
+        }
+    }
+
+    /**
+     * Stops and removes all transports and the stream client, must be called while holding the write lock.
+     * A transport failing to stop does not prevent the others from being stopped.
+     */
+    protected void stopTransports() {
+        if (streamClient != null) {
+            logger.debug("Stopping stream client connection management/pool");
+            stopTransport(streamClient::stop, "stream client");
+            streamClient = null;
+        }
+
+        for (Map.Entry<InetAddress, StreamServer> entry : streamServers.entrySet()) {
+            logger.debug("Stopping stream server on address: {}", entry.getKey());
+            stopTransport(entry.getValue()::stop, "stream server on address " + entry.getKey());
+        }
+        streamServers.clear();
+
+        for (Map.Entry<NetworkInterface, MulticastReceiver> entry : multicastReceivers.entrySet()) {
+            logger.debug("Stopping multicast receiver on interface: {}", entry.getKey().getDisplayName());
+            stopTransport(entry.getValue()::stop, "multicast receiver on interface " + entry.getKey().getDisplayName());
+        }
+        multicastReceivers.clear();
+
+        for (Map.Entry<InetAddress, DatagramIO> entry : datagramIOs.entrySet()) {
+            logger.debug("Stopping datagram I/O on address: {}", entry.getKey());
+            stopTransport(entry.getValue()::stop, "datagram I/O on address " + entry.getKey());
+        }
+        datagramIOs.clear();
+
+        networkAddressFactory = null;
+    }
+
+    private void stopTransport(Runnable stop, String transport) {
+        try {
+            stop.run();
+        } catch (RuntimeException e) {
+            logger.warn("Failed to stop {}", transport, e);
         }
     }
 

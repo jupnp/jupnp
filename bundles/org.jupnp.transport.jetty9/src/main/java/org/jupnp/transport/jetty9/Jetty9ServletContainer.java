@@ -20,6 +20,8 @@ import java.util.concurrent.ExecutorService;
 
 import javax.servlet.Servlet;
 
+import org.eclipse.jetty.server.Connector;
+import org.eclipse.jetty.server.NetworkConnector;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -128,6 +130,21 @@ public class Jetty9ServletContainer implements ServletContainerAdapter {
             } finally {
                 resetServer();
             }
+        } else if (server.getConnectors().length > 0) {
+            // addConnector() binds a connector's socket immediately via open(), independent of the server's own
+            // start/stop lifecycle. If the server never started (e.g. router initialization failing after a
+            // stream server's init() but before the executor runs it), close such connectors directly, otherwise
+            // the bound port leaks.
+            for (Connector connector : server.getConnectors()) {
+                if (connector instanceof NetworkConnector) {
+                    try {
+                        ((NetworkConnector) connector).close();
+                    } catch (Exception e) {
+                        logger.warn("Couldn't close connector: {}", connector, e);
+                    }
+                }
+            }
+            resetServer();
         }
     }
 
