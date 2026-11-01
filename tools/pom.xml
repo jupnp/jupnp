@@ -15,10 +15,6 @@
 
   <name>jUPnP Tools</name>
 
-  <modules>
-    <module>org.jupnp.tool</module>
-  </modules>
-
   <properties>
     <basedirRoot>..</basedirRoot>
   </properties>
@@ -92,5 +88,17 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <id>java17</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <modules>
+        <module>org.jupnp.tool</module>
+      </modules>
+    </profile>
+  </profiles>
 
 </project>
