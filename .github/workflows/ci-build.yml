@@ -98,7 +98,18 @@ jobs:
           mvn-server-repository-origins: |
             sonatype-central:https://central.sonatype.com
 
+      # App-authenticated release pushes also trigger CI; only deploy snapshots here.
+      - name: Check snapshot version
+        id: snapshot-version
+        shell: bash
+        run: |
+          version="$(./mvnw -B -ntp help:evaluate -Dexpression=project.version -q -DforceStdout)"
+          if [[ "$version" == *-SNAPSHOT ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish snapshot
+        if: steps.snapshot-version.outputs.publish == 'true'
         env:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
