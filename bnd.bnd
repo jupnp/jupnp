@@ -1,6 +1,13 @@
 Bundle-SymbolicName: ${project.artifactId}
 Bundle-Name: ${project.name}
 Automatic-Module-Name: ${def;bsn}
+-jpms-module-info: ${def;bsn}
+
+# bnd 6.x (used on Java 11) does not infer these names from multi-release JARs
+# or normalize artifact filenames in the same way as the Java module system.
+jpms.module.options: org.slf4j;substitute=slf4j-api,\
+ javax.servlet.api;substitute=javax.servlet-api
+-jpms-module-info-options: ${jpms.module.options}
 
 -exportcontents: org.jupnp.*
 -noimportjava: true
