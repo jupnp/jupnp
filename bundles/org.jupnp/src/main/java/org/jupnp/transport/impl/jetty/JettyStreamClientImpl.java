@@ -61,6 +61,8 @@ public class JettyStreamClientImpl extends AbstractStreamClient<StreamClientConf
         this.configuration = configuration;
 
         httpClient = new HttpClient();
+        // Redirects would bypass the HTTPS check in AbstractStreamClient.
+        httpClient.setFollowRedirects(false);
 
         // These are some safety settings, we should never run into these timeouts as we
         // do our own expiration checking
