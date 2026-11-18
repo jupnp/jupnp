@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2025 4th Line GmbH, Switzerland and others
+ * Copyright (C) 2011-2026 4th Line GmbH, Switzerland and others
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License Version 1 or later
@@ -24,8 +24,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.jupnp.DefaultUpnpServiceConfiguration;
 import org.jupnp.transport.TransportConfiguration;
 import org.jupnp.transport.impl.NetworkAddressFactoryImpl;
-import org.jupnp.transport.impl.jetty.JettyTransportConfiguration;
-import org.jupnp.transport.impl.jetty.StreamClientConfigurationImpl;
+import org.jupnp.transport.impl.StreamClientConfigurationImpl;
+import org.jupnp.transport.jetty12.Jetty12TransportConfiguration;
 import org.jupnp.transport.spi.NetworkAddressFactory;
 import org.jupnp.transport.spi.StreamClient;
 import org.jupnp.transport.spi.StreamClientConfiguration;
@@ -81,7 +81,7 @@ public class CmdlineUPnPServiceConfiguration extends DefaultUpnpServiceConfigura
         createExecutorServices();
 
         configuration = new StreamClientConfigurationImpl(mainExecutorService);
-        transportConfiguration = new JettyTransportConfiguration();
+        transportConfiguration = new Jetty12TransportConfiguration();
     }
 
     /**
@@ -130,6 +130,11 @@ public class CmdlineUPnPServiceConfiguration extends DefaultUpnpServiceConfigura
     @Override
     public ExecutorService getAsyncProtocolExecutor() {
         return asyncExecutorService;
+    }
+
+    @Override
+    public ExecutorService getSyncProtocolExecutorService() {
+        return getMainExecutorService();
     }
 
     @Override

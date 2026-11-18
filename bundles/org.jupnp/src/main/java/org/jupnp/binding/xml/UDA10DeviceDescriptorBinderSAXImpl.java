@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2025 4th Line GmbH, Switzerland and others
+ * Copyright (C) 2011-2026 4th Line GmbH, Switzerland and others
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License Version 1 or later
@@ -295,7 +295,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                         getInstance().depth = Integer.parseInt(getCharacters());
                     } catch (NumberFormatException e) {
                         SpecificationViolationReporter.report("Invalid icon depth '{}', using 16 as default: {}",
-                                getCharacters(), e);
+                                getCharacters(), e.getMessage());
                         getInstance().depth = 16;
                     }
                     break;

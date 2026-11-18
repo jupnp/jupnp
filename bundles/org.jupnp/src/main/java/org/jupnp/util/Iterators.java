@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2025 4th Line GmbH, Switzerland and others
+ * Copyright (C) 2011-2026 4th Line GmbH, Switzerland and others
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License Version 1 or later
@@ -87,6 +87,7 @@ public class Iterators {
         final Iterator<E> wrapped;
 
         int nextIndex = 0;
+        int removedCount = 0;
         boolean removedCurrent = false;
 
         protected Synchronized(Collection<E> collection) {
@@ -113,7 +114,8 @@ public class Iterators {
             if (removedCurrent) {
                 throw new IllegalStateException("Already removed current, call next()");
             }
-            synchronizedRemove(nextIndex - 1);
+            synchronizedRemove(nextIndex - 1 - removedCount);
+            removedCount++;
             removedCurrent = true;
         }
 

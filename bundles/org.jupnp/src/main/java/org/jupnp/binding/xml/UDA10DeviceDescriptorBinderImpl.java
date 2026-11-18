@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2025 4th Line GmbH, Switzerland and others
+ * Copyright (C) 2011-2026 4th Line GmbH, Switzerland and others
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License Version 1 or later
@@ -311,7 +311,7 @@ public class UDA10DeviceDescriptorBinderImpl implements DeviceDescriptorBinder, 
                             icon.depth = Integer.parseInt(depth);
                         } catch (NumberFormatException e) {
                             SpecificationViolationReporter.report("Invalid icon depth '{}', using 16 as default: {}",
-                                    depth, e);
+                                    depth, e.getMessage());
                             icon.depth = 16;
                         }
                     } else if (ELEMENT.url.equals(iconChild)) {
@@ -621,7 +621,7 @@ public class UDA10DeviceDescriptorBinderImpl implements DeviceDescriptorBinder, 
             //
             return URI.create("./" + uri);
         } catch (IllegalArgumentException e) {
-            SpecificationViolationReporter.report("Illegal URI '{}', ignoring value", uri, e);
+            SpecificationViolationReporter.report("Illegal URI '{}', ignoring value: {}", uri, e.getMessage());
             // Ignore
         }
         return null;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2025 4th Line GmbH, Switzerland and others
+ * Copyright (C) 2011-2026 4th Line GmbH, Switzerland and others
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License Version 1 or later
@@ -14,6 +14,8 @@
  * SPDX-License-Identifier: CDDL-1.0
  */
 package org.jupnp.support.igd.callback;
+
+import java.util.Objects;
 
 import org.jupnp.controlpoint.ActionCallback;
 import org.jupnp.controlpoint.ControlPoint;
@@ -38,10 +40,10 @@ public abstract class PortMappingAdd extends ActionCallback {
 
         this.portMapping = portMapping;
 
-        getActionInvocation().setInput("NewExternalPort", portMapping.getExternalPort());
+        getActionInvocation().setInput("NewExternalPort", Objects.toString(portMapping.getExternalPort(), null));
         getActionInvocation().setInput("NewProtocol", portMapping.getProtocol());
         getActionInvocation().setInput("NewInternalClient", portMapping.getInternalClient());
-        getActionInvocation().setInput("NewInternalPort", portMapping.getInternalPort());
+        getActionInvocation().setInput("NewInternalPort", Objects.toString(portMapping.getInternalPort(), null));
         getActionInvocation().setInput("NewLeaseDuration", portMapping.getLeaseDurationSeconds());
         getActionInvocation().setInput("NewEnabled", portMapping.isEnabled());
         if (portMapping.hasRemoteHost()) {

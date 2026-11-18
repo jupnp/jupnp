@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2025 4th Line GmbH, Switzerland and others
+ * Copyright (C) 2011-2026 4th Line GmbH, Switzerland and others
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License Version 1 or later
@@ -14,6 +14,8 @@
  * SPDX-License-Identifier: CDDL-1.0
  */
 package org.jupnp.support.igd.callback;
+
+import java.util.Objects;
 
 import org.jupnp.controlpoint.ActionCallback;
 import org.jupnp.controlpoint.ControlPoint;
@@ -38,7 +40,7 @@ public abstract class PortMappingDelete extends ActionCallback {
 
         this.portMapping = portMapping;
 
-        getActionInvocation().setInput("NewExternalPort", portMapping.getExternalPort());
+        getActionInvocation().setInput("NewExternalPort", Objects.toString(portMapping.getExternalPort(), null));
         getActionInvocation().setInput("NewProtocol", portMapping.getProtocol());
         if (portMapping.hasRemoteHost()) {
             getActionInvocation().setInput("NewRemoteHost", portMapping.getRemoteHost());

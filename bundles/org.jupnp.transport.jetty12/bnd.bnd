@@ -1,0 +1,8 @@
+-include: ../../bnd.bnd
+
+# Advertise this bundle as a ServiceLoader provider for TransportConfiguration, so that an OSGi
+# Service Loader Mediator (e.g. Apache Aries SPI Fly) can register it and make it visible to
+# consumers such as org.jupnp's TransportConfigurationProvider, see META-INF/services.
+Provide-Capability: osgi.serviceloader;osgi.serviceloader=org.jupnp.transport.TransportConfiguration
+
+Require-Capability: osgi.extender;filter:="(osgi.extender=osgi.serviceloader.registrar)";resolution:=optional

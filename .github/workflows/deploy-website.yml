@@ -5,6 +5,9 @@ on:
   push:
     branches:
       - 'main'
+    paths:
+      - '.github/workflows/deploy-website.yml'
+      - 'website/**'
   pull_request:
     branches:
       - 'main'
@@ -20,15 +23,15 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '18'
+          node-version: '24'
           cache: 'yarn'
           cache-dependency-path: website/yarn.lock
 
@@ -36,12 +39,22 @@ jobs:
         working-directory: website
         run: yarn install --immutable
 
+      - name: Cache Docusaurus build
+        uses: actions/cache@v6
+        with:
+          path: |
+            website/.docusaurus
+            website/node_modules/.cache
+          key: docusaurus-${{ runner.os }}-${{ hashFiles('website/yarn.lock', 'website/docusaurus.config.ts') }}
+          restore-keys: |
+            docusaurus-${{ runner.os }}-
+
       - name: Build
         working-directory: website
         run: yarn build
 
       - name: Upload Artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: website/build
 
@@ -50,7 +63,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     if: success() && github.ref == 'refs/heads/main'
     needs: build
     # Allow one concurrent deployment
@@ -64,9 +77,9 @@ jobs:
       id-token: write
     steps:
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 

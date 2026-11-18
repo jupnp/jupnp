@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2025 4th Line GmbH, Switzerland and others
+ * Copyright (C) 2011-2026 4th Line GmbH, Switzerland and others
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License Version 1 or later
@@ -44,7 +44,7 @@ import org.jupnp.transport.impl.MulticastReceiverConfigurationImpl;
 import org.jupnp.transport.impl.MulticastReceiverImpl;
 import org.jupnp.transport.impl.NetworkAddressFactoryImpl;
 import org.jupnp.transport.impl.SOAPActionProcessorImpl;
-import org.jupnp.transport.impl.jetty.StreamClientConfigurationImpl;
+import org.jupnp.transport.impl.StreamClientConfigurationImpl;
 import org.jupnp.transport.spi.DatagramIO;
 import org.jupnp.transport.spi.DatagramProcessor;
 import org.jupnp.transport.spi.GENAEventProcessor;
@@ -61,8 +61,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Default configuration data of a typical UPnP stack.
  * <p>
- * This configuration utilizes the default network transport implementation found in
- * {@link org.jupnp.transport.impl}.
+ * The network transport implementation is provided by a separate bundle (e.g.
+ * <code>org.jupnp.transport.jetty9</code> or <code>org.jupnp.transport.jetty12</code>) and discovered via
+ * {@link TransportConfigurationProvider}, see {@link #getTransportConfiguration()}.
  * </p>
  * <p>
  * This configuration utilizes the DOM default descriptor binders found in
@@ -117,7 +118,7 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
     private StreamClientConfiguration configuration;
 
     @SuppressWarnings("rawtypes")
-    private final TransportConfiguration transportConfiguration;
+    private volatile TransportConfiguration transportConfiguration;
 
     /**
      * Defaults to port '0', ephemeral.
@@ -159,7 +160,26 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
         namespace = createNamespace();
 
         configuration = new StreamClientConfigurationImpl(defaultExecutorService);
-        transportConfiguration = TransportConfigurationProvider.getDefaultTransportConfiguration();
+    }
+
+    /**
+     * The transport implementation is discovered lazily so that a configuration can be instantiated (e.g. for
+     * tests with mocked transport) without a transport implementation on the class path.
+     *
+     * @return the discovered {@link TransportConfiguration}
+     */
+    @SuppressWarnings("rawtypes")
+    protected TransportConfiguration getTransportConfiguration() {
+        TransportConfiguration result = transportConfiguration;
+        if (result == null) {
+            synchronized (this) {
+                result = transportConfiguration;
+                if (result == null) {
+                    transportConfiguration = result = TransportConfigurationProvider.getDefaultTransportConfiguration();
+                }
+            }
+        }
+        return result;
     }
 
     @Override
@@ -180,13 +200,13 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
     @Override
     @SuppressWarnings("rawtypes")
     public StreamClient createStreamClient() {
-        return transportConfiguration.createStreamClient(getSyncProtocolExecutorService(), configuration);
+        return getTransportConfiguration().createStreamClient(getSyncProtocolExecutorService(), configuration);
     }
 
     @Override
     @SuppressWarnings("rawtypes")
     public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory) {
-        return transportConfiguration.createStreamServer(networkAddressFactory.getStreamListenPort());
+        return getTransportConfiguration().createStreamServer(networkAddressFactory.getStreamListenPort());
     }
 
     @Override

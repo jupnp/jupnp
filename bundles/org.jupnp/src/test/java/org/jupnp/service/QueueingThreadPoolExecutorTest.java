@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2025 4th Line GmbH, Switzerland and others
+ * Copyright (C) 2011-2026 4th Line GmbH, Switzerland and others
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License Version 1 or later
@@ -443,8 +443,10 @@ class QueueingThreadPoolExecutorTest {
         assertTrue(isQueueThreadActive(poolName));
         assertEquals(1, pool.getQueue().size());
 
-        // wait until all jobs have been processed
-        Thread.sleep(2 * 1000 + 1000);
+        // wait until all jobs have been processed -- shutdown() must not race the queue thread's handoff of the
+        // queued 5th task: QueueingRejectionHandler silently drops a task if shutdown() flips isShutdown() before
+        // the queue thread manages to dispatch it, which is what made this test flaky on slower CI hosts.
+        waitForAssert(() -> assertEquals(5, pool.getCompletedTaskCount()));
 
         pool.shutdown();
         // after shutdown all threads are down again

@@ -19,7 +19,6 @@ const config: Config = {
   projectName: 'jupnp', // Usually your repo name.
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -29,23 +28,37 @@ const config: Config = {
     locales: ['en'],
   },
 
+  future: {
+    v4: {
+      removeLegacyPostBuildHeadAttribute: true,
+      useCssCascadeLayers: true,
+    },
+    faster: true,
+  },
+
   presets: [
     [
       'classic',
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/jupnp/jupnp/edit/main/website',
+          editUrl: ({versionDocsDirPath, docPath}) => `https://github.com/jupnp/jupnp/edit/main/website/${versionDocsDirPath}/${docPath}`,
+          includeCurrentVersion: true,
+          lastVersion: '3.x',
+          versions: {
+            'current': {
+              label: '4.x',
+              banner: 'none',
+            },
+            '3.x': {
+              label: '3.x',
+              banner: 'none',
+            },
+          },
         },
         blog: {
           showReadingTime: true,
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/jupnp/jupnp/edit/main/website',
+          editUrl: 'https://github.com/jupnp/jupnp/edit/main/website',
         },
         theme: {
           customCss: './src/css/custom.css',
@@ -55,8 +68,19 @@ const config: Config = {
   ],
 
   plugins: [[require.resolve('docusaurus-lunr-search'), {
-    disableVersioning: true
+    disableVersioning: false
   }]],
+
+  themes: [
+    "@docusaurus/theme-mermaid"
+  ],
+
+  markdown: {
+    mermaid: true,
+    hooks: {
+        onBrokenMarkdownLinks: 'warn',
+    },
+  },
 
   themeConfig: {
     // Replace with your project's social card
@@ -68,6 +92,10 @@ const config: Config = {
         src: 'img/logo.png',
       },
       items: [
+        {
+          type: 'docsVersionDropdown',
+          position: 'left',
+        },
         {
           type: 'docSidebar',
           sidebarId: 'jupnpSidebar',
