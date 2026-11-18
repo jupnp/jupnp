@@ -35,6 +35,9 @@ public class Base64Datatype extends AbstractDatatype<byte[]> {
         if (s.isEmpty()) {
             return null;
         }
+        if (s.endsWith("=") && s.length() % 4 != 0) {
+            throw new InvalidValueException("Padded base64 value must have a length that is a multiple of 4");
+        }
         try {
             return Base64.getDecoder().decode(s);
         } catch (Exception e) {

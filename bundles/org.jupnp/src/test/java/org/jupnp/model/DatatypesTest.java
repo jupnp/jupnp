@@ -218,6 +218,19 @@ class DatatypesTest {
     }
 
     @Test
+    void base64Padding() {
+        Base64Datatype type = (Base64Datatype) Datatype.Builtin.BIN_BASE64.getDatatype();
+        assertArrayEquals(new byte[] { 107, 86 }, type.valueOf("a1Y="));
+        assertArrayEquals(new byte[] { 107, 86 }, type.valueOf("a1Y"));
+        assertArrayEquals(new byte[] { 107 }, type.valueOf("aw=="));
+
+        for (String invalid : List.of("=", "a1b2=", "a1b2==", "aw=")) {
+            InvalidValueException e = assertThrows(InvalidValueException.class, () -> type.valueOf(invalid));
+            assertNull(e.getCause(), "value must be rejected before decoding");
+        }
+    }
+
+    @Test
     void simpleCSV() {
         List<String> csv = new CSVString("foo,bar,baz");
         assertEquals(3, csv.size());
