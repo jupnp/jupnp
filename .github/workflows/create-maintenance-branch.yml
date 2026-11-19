@@ -1,0 +1,107 @@
+name: Create maintenance branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Stable release tag to branch from (for example, 3.0.5)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  create-branch:
+    name: Create maintenance branch
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-26.04
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      MAVEN_OPTS: -Xmx2g -Dmaven.wagon.http.retryHandler.count=5 -Dmaven.wagon.httpconnectionManager.ttlSeconds=25
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Determine maintenance branch and snapshot version
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Select a stable release tag in <major>.<minor>.<patch> format"
+            exit 1
+          fi
+
+          series="${RELEASE_TAG%.*}"
+          patch="${RELEASE_TAG##*.}"
+          {
+            echo "MAINTENANCE_BRANCH=$series.x"
+            echo "NEXT_SNAPSHOT_VERSION=$series.$((patch + 1))-SNAPSHOT"
+          } >> "$GITHUB_ENV"
+
+      - name: Checkout release tag
+        uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+          persist-credentials: false
+
+      - name: Check that the maintenance branch is available
+        run: |
+          existing_branch="$(git ls-remote --heads origin "refs/heads/$MAINTENANCE_BRANCH")"
+          if [[ -n "$existing_branch" ]]; then
+            echo "::error::Branch $MAINTENANCE_BRANCH already exists"
+            exit 1
+          fi
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Set next snapshot version
+        run: |
+          current_version="$(./mvnw -B -ntp help:evaluate -Dexpression=project.version -q -DforceStdout)"
+          if [[ "$current_version" != "$RELEASE_TAG" ]]; then
+            echo "::error::Expected project version $RELEASE_TAG, but found $current_version"
+            exit 1
+          fi
+          ./mvnw -B -ntp versions:set -DnewVersion="$NEXT_SNAPSHOT_VERSION" -DprocessAllModules=true -DgenerateBackupPoms=false
+
+      - name: Update runbundles
+        run: ./mvnw -B -ntp clean install -DwithResolver -DskipTests
+
+      - name: Validate snapshot changes
+        run: |
+          git diff --check
+
+          unexpected_files="$(git diff --name-only | grep -vE '(^|/)pom\.xml$|^itests/.*\.bndrun$' || true)"
+          untracked_files="$(git ls-files --others --exclude-standard)"
+          if [[ -n "$unexpected_files" || -n "$untracked_files" ]]; then
+            echo "::error::Snapshot preparation changed unexpected files"
+            printf '%s\n' "$unexpected_files" "$untracked_files"
+            exit 1
+          fi
+
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.JUPNP_APP_CLIENT_ID }}
+          private-key: ${{ secrets.JUPNP_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Commit and push maintenance branch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          bot_user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${bot_user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+          git commit -am "Prepare for next development iteration: $NEXT_SNAPSHOT_VERSION"
+
+          gh auth setup-git
+          branch_ref="refs/heads/$MAINTENANCE_BRANCH"
+          # Require the remote ref to be absent even if another run has just created it.
+          git push --force-with-lease="$branch_ref:" origin "HEAD:$branch_ref"

@@ -4,13 +4,13 @@ on:
   push:
     branches:
       - 'main'
+      - '[0-9]+.[0-9]+.x'
     paths-ignore:
       - 'website/**'
   pull_request:
     branches:
       - 'main'
-    paths-ignore:
-      - 'website/**'
+      - '[0-9]+.[0-9]+.x'
   workflow_dispatch:
 
 permissions:
@@ -74,9 +74,20 @@ jobs:
           echo "::error::Files have changed: $CHANGED_FILES"
           exit 1
 
+  build-verification:
+    name: Build verification
+    if: always()
+    needs: build
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Check build matrix result
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: test "$BUILD_RESULT" = success
+
   publish-snapshot:
     name: Publish snapshot
-    if: github.ref == 'refs/heads/main'
+    if: github.ref_type == 'branch' && (github.ref_name == github.event.repository.default_branch || endsWith(github.ref_name, '.x'))
     needs: build
     runs-on: ubuntu-26.04
 
@@ -102,11 +113,24 @@ jobs:
       - name: Check snapshot version
         id: snapshot-version
         shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          version="$(./mvnw -B -ntp help:evaluate -Dexpression=project.version -q -DforceStdout)"
-          if [[ "$version" == *-SNAPSHOT ]]; then
-            echo "publish=true" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_NAME" != "$DEFAULT_BRANCH" && ! "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+\.x$ ]]; then
+            exit 0
           fi
+
+          version="$(./mvnw -B -ntp help:evaluate -Dexpression=project.version -q -DforceStdout)"
+          if [[ "$version" != *-SNAPSHOT ]]; then
+            exit 0
+          fi
+
+          if [[ "$GITHUB_REF_NAME" != "$DEFAULT_BRANCH" && "$version" != "${GITHUB_REF_NAME%.x}".* ]]; then
+            echo "::warning::Skipping snapshot $version outside the $GITHUB_REF_NAME release line"
+            exit 0
+          fi
+
+          echo "publish=true" >> "$GITHUB_OUTPUT"
 
       - name: Publish snapshot
         if: steps.snapshot-version.outputs.publish == 'true'

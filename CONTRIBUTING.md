@@ -157,3 +157,14 @@ There are several exceptions to the signing requirement. Currently these are:
 
 Don't forget: being a maintainer is a time investment. Make sure you will have time to make yourself available.
 You don't have to be a maintainer to make a difference on the project!
+
+## Maintenance releases
+
+Always target pull requests at `main`, including fixes for maintenance releases.
+Maintainers decide which fixes to cherry-pick to maintenance branches after merge based on the severity of the issues they address.
+
+Run **Actions → Create maintenance branch** from the default branch and enter the latest stable tag for the release line.
+For example, tag `3.0.5` creates `3.0.x` at `3.0.6-SNAPSHOT`.
+The workflow updates the Maven version and regenerates the OSGi runbundles before pushing the branch.
+
+To publish, select that branch in **Actions → Release → Run workflow** and enter the release and next snapshot versions, for example `3.0.6` and `3.0.7-SNAPSHOT`.
