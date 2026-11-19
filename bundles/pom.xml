@@ -74,6 +74,12 @@
       <plugin>
         <groupId>biz.aQute.bnd</groupId>
         <artifactId>bnd-maven-plugin</artifactId>
+        <configuration>
+          <!-- Keep generated module descriptors out of javac's output directory so subsequent
+               compilations and the existing tests continue to use the classpath. -->
+          <outputDir>${project.build.directory}/bnd</outputDir>
+          <manifestPath>${project.build.directory}/bnd/META-INF/MANIFEST.MF</manifestPath>
+        </configuration>
         <executions>
           <execution>
             <goals>
@@ -86,8 +92,9 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
         <configuration>
+          <classesDirectory>${project.build.directory}/bnd</classesDirectory>
           <archive>
-            <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+            <manifestFile>${project.build.directory}/bnd/META-INF/MANIFEST.MF</manifestFile>
           </archive>
           <skipIfEmpty>true</skipIfEmpty>
         </configuration>

@@ -1,3 +1,6 @@
--include: ../../bnd.bnd
+-include: ~../../bnd.bnd
+
+# This OSGi-only test fixture does not need a module descriptor.
+-jpms-module-info: ""
 
 -includeresource: org.jupnp.common-*.jar;lib:=true

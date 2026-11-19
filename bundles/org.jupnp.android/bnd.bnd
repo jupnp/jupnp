@@ -1,0 +1,5 @@
+-include: ~../../bnd.bnd
+
+# Android does not use JPMS. A quoted empty clause disables generation;
+# a bare empty value would enable bnd's defaults instead.
+-jpms-module-info: ""
