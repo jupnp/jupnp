@@ -79,11 +79,34 @@ jobs:
     if: always()
     needs: build
     runs-on: ubuntu-26.04
+    permissions:
+      actions: read
     steps:
       - name: Check build matrix result
         env:
           BUILD_RESULT: ${{ needs.build.result }}
-        run: test "$BUILD_RESULT" = success
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$BUILD_RESULT" == success ]]; then
+            exit 0
+          fi
+
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          printf '::error::The build matrix reported %s. See the Build verification summary for job details.\n' "$BUILD_RESULT"
+          printf 'The build matrix reported **%s**. [Open the CI run](%s).\n' "$BUILD_RESULT" "$run_url" >> "$GITHUB_STEP_SUMMARY"
+
+          if details=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" --jq '
+            .jobs[]
+            | select(.name | startswith("Build ("))
+            | select(.conclusion != "success")
+            | [.steps[]? | select(.conclusion == "failure" or .conclusion == "cancelled") | .name] as $steps
+            | "- [\(.name)](\(.html_url)) — **\(.conclusion // .status)**"
+              + (if $steps == [] then "" else " (\($steps | join(", ")))" end)
+          ') && [[ -n "$details" ]]; then
+            printf '\n%s\n' "$details" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+          exit 1
 
   publish-snapshot:
     name: Publish snapshot
