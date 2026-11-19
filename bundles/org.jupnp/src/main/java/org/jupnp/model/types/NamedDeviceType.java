@@ -15,6 +15,8 @@
  */
 package org.jupnp.model.types;
 
+import java.util.regex.Pattern;
+
 /**
  * Combines a {@link UDN} with a {@link DeviceType}, string representation
  * is separated by double-colon.
@@ -22,6 +24,8 @@ package org.jupnp.model.types;
  * @author Christian Bauer
  */
 public class NamedDeviceType {
+
+    public static final Pattern PATTERN_DELIMITER = Pattern.compile("::");
 
     private UDN udn;
     private DeviceType deviceType;
@@ -40,7 +44,7 @@ public class NamedDeviceType {
     }
 
     public static NamedDeviceType valueOf(String s) throws InvalidValueException {
-        String[] strings = s.split("::");
+        String[] strings = PATTERN_DELIMITER.split(s, 3);
         if (strings.length != 2) {
             throw new InvalidValueException("Can't parse UDN::DeviceType from: " + s);
         }
