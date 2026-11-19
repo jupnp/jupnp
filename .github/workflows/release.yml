@@ -28,6 +28,7 @@ env:
   NEXT_SNAPSHOT_VERSION: ${{ inputs.next_snapshot_version }}
   TAG_NAME: ${{ inputs.release_version }}
   DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+  RELEASE_REF: ${{ github.ref }}
   MAVEN_OPTS: -Xmx2g -Dmaven.wagon.http.retryHandler.count=5 -Dmaven.wagon.httpconnectionManager.ttlSeconds=25
 
 jobs:
@@ -36,28 +37,6 @@ jobs:
     runs-on: ubuntu-26.04
 
     steps:
-      - name: Create GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          client-id: ${{ secrets.JUPNP_APP_CLIENT_ID }}
-          private-key: ${{ secrets.JUPNP_APP_PRIVATE_KEY }}
-          permission-contents: write
-
-      - name: Checkout default branch
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ env.DEFAULT_BRANCH }}
-          fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
-
       - name: Validate release inputs
         run: |
           if [[ ! "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.M[1-9][0-9]*)?$ ]]; then
@@ -70,6 +49,44 @@ jobs:
             exit 1
           fi
 
+          if [[ "$RELEASE_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
+            if [[ ! "$RELEASE_REF" =~ ^refs/heads/[0-9]+\.[0-9]+\.x$ ]]; then
+              echo "::error::Select the default branch or a maintenance branch named <major>.<minor>.x"
+              exit 1
+            fi
+
+            series="${RELEASE_REF#refs/heads/}"
+            series="${series%.x}"
+            if [[ "$RELEASE_VERSION" != "$series".* || "$NEXT_SNAPSHOT_VERSION" != "$series".* ]]; then
+              echo "::error::Both versions must be in the $series.x release line"
+              exit 1
+            fi
+          fi
+
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.JUPNP_APP_CLIENT_ID }}
+          private-key: ${{ secrets.JUPNP_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Checkout selected commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Verify current version and tag
+        run: |
           current_version="$(./mvnw -B -ntp help:evaluate -Dexpression=project.version -q -DforceStdout)"
 
           # Milestones and the final release share the same development snapshot.
@@ -122,7 +139,7 @@ jobs:
           git config user.email "${bot_user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
           git commit -m "Release version $RELEASE_VERSION"
           git tag -a "$TAG_NAME" -m "Release version $RELEASE_VERSION"
-          git push --atomic origin "HEAD:$DEFAULT_BRANCH" "$TAG_NAME"
+          git push --atomic origin "HEAD:$RELEASE_REF" "refs/tags/$TAG_NAME"
 
   publish:
     name: Publish to Maven Central
@@ -134,7 +151,7 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@v7
         with:
-          ref: ${{ env.TAG_NAME }}
+          ref: refs/tags/${{ env.TAG_NAME }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -173,10 +190,10 @@ jobs:
           private-key: ${{ secrets.JUPNP_APP_PRIVATE_KEY }}
           permission-contents: write
 
-      - name: Checkout default branch
+      - name: Checkout release branch
         uses: actions/checkout@v7
         with:
-          ref: ${{ env.DEFAULT_BRANCH }}
+          ref: ${{ env.RELEASE_REF }}
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
@@ -196,7 +213,27 @@ jobs:
             release_flags=()
             if [[ "$RELEASE_VERSION" == *.M* ]]; then
               release_flags+=(--prerelease --latest=false)
+            else
+              published_versions="$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" --jq '
+                .[] | select(.draft == false and .prerelease == false) | .tag_name
+                | select(test("^[0-9]+[.][0-9]+[.][0-9]+$"))
+              ')"
+              highest_version="$(printf '%s\n' "$published_versions" "$RELEASE_VERSION" | LC_ALL=C sort -V | tail -n 1)"
+              if [[ "$RELEASE_VERSION" == "$highest_version" ]]; then
+                release_flags+=(--latest=true)
+              else
+                release_flags+=(--latest=false)
+              fi
             fi
+
+            if [[ "$RELEASE_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
+              series="${RELEASE_REF#refs/heads/}"
+              series="${series%.x}"
+              if previous_tag="$(git describe --tags --abbrev=0 --match "$series.[0-9]*" --exclude "$series.*[!0-9]*" "refs/tags/$TAG_NAME^" 2>/dev/null)"; then
+                release_flags+=(--notes-start-tag "$previous_tag")
+              fi
+            fi
+
             gh release create "$TAG_NAME" --verify-tag --generate-notes --title "JUPnP $RELEASE_VERSION" "${release_flags[@]}"
           fi
 
@@ -243,4 +280,4 @@ jobs:
           git config user.name "${APP_SLUG}[bot]"
           git config user.email "${bot_user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
           git commit -m "Prepare for next development iteration: $NEXT_SNAPSHOT_VERSION"
-          git push origin "HEAD:$DEFAULT_BRANCH"
+          git push origin "HEAD:$RELEASE_REF"
