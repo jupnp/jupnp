@@ -64,8 +64,10 @@ public class CallbackHeader extends UpnpHeader<List<URL>> {
             for (String sp : split) {
                 sp = sp.trim();
 
+                // The sender chooses how many URLs this header has, so a discarded URL is only traced, like any
+                // other header value we don't accept (see UpnpHeader#newInstance), and never with a stack trace
                 if (!sp.startsWith("http://")) {
-                    logger.warn("Discarding non-http callback URL: {}", sp);
+                    logger.trace("Discarding non-http callback URL: {}", sp);
                     continue;
                 }
 
@@ -84,7 +86,7 @@ public class CallbackHeader extends UpnpHeader<List<URL>> {
                      */
                     url.toURI();
                 } catch (URISyntaxException e) {
-                    logger.warn("Discarding callback URL, not a valid URI on this platform: {}", url, e);
+                    logger.trace("Discarding callback URL, not a valid URI on this platform: {}", e.getMessage());
                     continue;
                 }
 

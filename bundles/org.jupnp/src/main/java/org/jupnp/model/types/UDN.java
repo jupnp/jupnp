@@ -26,7 +26,8 @@ import org.jupnp.model.ModelUtil;
  * A unique device name.
  * <p>
  * UDA 1.0 does not specify a UUID format, however, UDA 1.1 specifies a format that is compatible
- * with <tt>java.util.UUID</tt> variant 4. You can use any identifier string you like.
+ * with <tt>java.util.UUID</tt> variant 4. You can use any identifier string you like, up to
+ * {@link org.jupnp.model.meta.DeviceIdentity#MAX_UDN_LENGTH} characters.
  * </p>
  * <p>
  * You'll most likely need the {@link #uniqueSystemIdentifier(String)} method sooner or later.

@@ -113,6 +113,36 @@ public class ActionSampleData {
         }
     }
 
+    @org.jupnp.binding.annotations.UpnpService(serviceId = @UpnpServiceId("Dimming"), serviceType = @UpnpServiceType(value = "Dimming", version = 1))
+    public static class LocalTestServiceWithRestrictedValues {
+
+        @UpnpStateVariable(defaultValue = "0", sendEvents = false, allowedValueMinimum = 0, allowedValueMaximum = 100)
+        private int loadLevelTarget = 0;
+
+        @UpnpStateVariable(defaultValue = "Normal", sendEvents = false, allowedValues = { "Normal", "Inverted" })
+        private String mode = "Normal";
+
+        @UpnpAction
+        public void setLoadLevelTarget(@UpnpInputArgument(name = "NewLoadLevelTarget") int newLoadLevelTarget) {
+            loadLevelTarget = newLoadLevelTarget;
+        }
+
+        @UpnpAction(out = @UpnpOutputArgument(name = "RetLoadLevelTarget"))
+        public int getLoadLevelTarget() {
+            return loadLevelTarget;
+        }
+
+        @UpnpAction
+        public void setMode(@UpnpInputArgument(name = "NewMode") String newMode) {
+            mode = newMode;
+        }
+
+        @UpnpAction(out = @UpnpOutputArgument(name = "RetMode"))
+        public String getMode() {
+            return mode;
+        }
+    }
+
     @org.jupnp.binding.annotations.UpnpService(serviceId = @UpnpServiceId("SwitchPower"), serviceType = @UpnpServiceType(value = "SwitchPower", version = 1))
     public static class LocalTestServiceWithClientInfo {
 

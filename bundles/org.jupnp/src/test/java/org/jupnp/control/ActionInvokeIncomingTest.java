@@ -251,6 +251,72 @@ class ActionInvokeIncomingTest {
     }
 
     @Test
+    void incomingRemoteCallArgumentValueOutOfRange() throws Exception {
+        ActionException ex = incomingRemoteCallRestricted("SetLoadLevelTarget", "NewLoadLevelTarget", "250", 0);
+        assertNotNull(ex);
+        assertEquals(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE.getCode(), ex.getErrorCode());
+
+        ex = incomingRemoteCallRestricted("SetLoadLevelTarget", "NewLoadLevelTarget", "-7", 0);
+        assertNotNull(ex);
+        assertEquals(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE.getCode(), ex.getErrorCode());
+
+        assertNull(incomingRemoteCallRestricted("SetLoadLevelTarget", "NewLoadLevelTarget", "100", 100));
+    }
+
+    @Test
+    void incomingRemoteCallArgumentValueNotInAllowedValues() throws Exception {
+        ActionException ex = incomingRemoteCallRestricted("SetMode", "NewMode", "Dangerous", "Normal");
+        assertNotNull(ex);
+        assertEquals(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE.getCode(), ex.getErrorCode());
+
+        assertNull(incomingRemoteCallRestricted("SetMode", "NewMode", "Inverted", "Inverted"));
+    }
+
+    /**
+     * Invokes an action of {@link ActionSampleData.LocalTestServiceWithRestrictedValues} with the given
+     * input value, asserts the state of the service implementation afterwards and returns the failure, if any.
+     */
+    protected ActionException incomingRemoteCallRestricted(String actionName, String argumentName, String value,
+            Object expectedState) throws Exception {
+        MockUpnpService upnpService = new MockUpnpService();
+        upnpService.startup();
+        LocalDevice ld = ActionSampleData.createTestDevice(ActionSampleData.LocalTestServiceWithRestrictedValues.class);
+        LocalService service = ld.getServices()[0];
+        upnpService.getRegistry().addDevice(ld);
+
+        Action action = service.getAction(actionName);
+
+        URI controlURI = upnpService.getConfiguration().getNamespace().getControlPath(service);
+        StreamRequestMessage request = new StreamRequestMessage(UpnpRequest.Method.POST, controlURI);
+        addMandatoryRequestHeaders(service, action, request);
+        request.setBody(UpnpMessage.BodyType.STRING,
+                "<?xml version=\"1.0\"?>\n" + " <s:Envelope\n"
+                        + "     xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"\n"
+                        + "     s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\n" + "   <s:Body>\n"
+                        + "     <u:" + actionName + " xmlns:u=\"urn:schemas-upnp-org:service:Dimming:1\">\n"
+                        + "       <" + argumentName + ">" + value + "</" + argumentName + ">\n" + "     </u:"
+                        + actionName + ">\n" + "   </s:Body>\n" + " </s:Envelope>");
+
+        ReceivingAction prot = new ReceivingAction(upnpService, request);
+
+        prot.run();
+
+        StreamResponseMessage response = prot.getOutputMessage();
+        assertNotNull(response);
+
+        ActionSampleData.LocalTestServiceWithRestrictedValues impl = (ActionSampleData.LocalTestServiceWithRestrictedValues) service
+                .getManager().getImplementation();
+        assertEquals(expectedState, actionName.equals("SetMode") ? impl.getMode() : (Object) impl.getLoadLevelTarget());
+
+        IncomingActionResponseMessage responseMessage = new IncomingActionResponseMessage(response);
+        ActionInvocation responseInvocation = new ActionInvocation(action);
+        upnpService.getConfiguration().getSoapActionProcessor().readBody(responseMessage, responseInvocation);
+
+        assertEquals(response.getOperation().isFailed(), responseInvocation.getFailure() != null);
+        return responseInvocation.getFailure();
+    }
+
+    @Test
     void incomingRemoteCallControlURINotFound() throws Exception {
         // Register local device and its service
         MockUpnpService upnpService = new MockUpnpService();

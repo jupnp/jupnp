@@ -22,6 +22,7 @@ import java.util.List;
 import org.jupnp.model.Validatable;
 import org.jupnp.model.ValidationError;
 import org.jupnp.model.types.Datatype;
+import org.jupnp.model.types.UnsignedVariableInteger;
 import org.jupnp.util.SpecificationViolationReporter;
 
 /**
@@ -73,6 +74,39 @@ public class StateVariableTypeDetails implements Validatable {
 
     public StateVariableAllowedValueRange getAllowedValueRange() {
         return allowedValueRange;
+    }
+
+    /**
+     * Checks a value against the allowed value list or the allowed value range, if any.
+     * <p>
+     * The step of an allowed value range is a hint for control points and is not enforced here.
+     * </p>
+     *
+     * @param value The value to check, as converted by the {@link Datatype} of this state variable.
+     * @return <code>true</code> if the value is allowed or if there is no restriction to check.
+     */
+    public boolean isAllowedValue(Object value) {
+        if (value == null) {
+            return true;
+        }
+
+        if (getAllowedValues() != null) {
+            return Arrays.asList(getAllowedValues()).contains(value.toString());
+        }
+
+        if (getAllowedValueRange() != null) {
+            double number;
+            if (value instanceof UnsignedVariableInteger) {
+                number = ((UnsignedVariableInteger) value).getValue();
+            } else if (value instanceof Number) {
+                number = ((Number) value).doubleValue();
+            } else {
+                return true;
+            }
+            return number >= getAllowedValueRange().getMinimum() && number <= getAllowedValueRange().getMaximum();
+        }
+
+        return true;
     }
 
     protected boolean foundDefaultInAllowedValues(String defaultValue, String[] allowedValues) {

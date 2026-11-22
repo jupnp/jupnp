@@ -80,6 +80,14 @@ public abstract class Device<DI extends DeviceIdentity, D extends Device, S exte
         this.type = type;
         this.details = details;
 
+        if (type != null && identity != null) {
+            List<ValidationError> identityErrors = identity.validate();
+            if (!identityErrors.isEmpty()) {
+                throw new ValidationException("Validation of device graph failed, call getErrors() on exception",
+                        identityErrors);
+            }
+        }
+
         // We don't fail device validation if icons were invalid, only log a warning. To
         // comply with mutability rules (can't set icons field in validate() method), we
         // validate the icons here before we set the field value

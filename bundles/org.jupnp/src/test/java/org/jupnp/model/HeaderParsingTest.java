@@ -29,6 +29,12 @@ import org.jupnp.model.types.ServiceType;
 import org.jupnp.model.types.UDADeviceType;
 import org.jupnp.model.types.UDAServiceType;
 import org.jupnp.util.MimeType;
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 class HeaderParsingTest {
 
@@ -463,6 +469,25 @@ class HeaderParsingTest {
         header.setString("<http://127.0.0.1/foo> <ftp://127.0.0.1/bar>");
         assertEquals(1, header.getValue().size());
         assertEquals("http://127.0.0.1/foo", header.getValue().get(0).toString());
+    }
+
+    @Test
+    void parseInvalidCallbackHeaderStringWithoutWarnings() {
+        Logger logger = (Logger) LoggerFactory.getLogger(CallbackHeader.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            // Invalid percent escapes are accepted by URL and rejected by URI.
+            CallbackHeader header = new CallbackHeader();
+            header.setString("<http://127.0.0.1/foo>" + "<http://127.0.0.1/bad%zz>".repeat(3)
+                    + "<ftp://127.0.0.1/bar>".repeat(3));
+            assertEquals(1, header.getValue().size());
+            assertEquals("http://127.0.0.1/foo", header.getValue().get(0).toString());
+            assertTrue(appender.list.stream().noneMatch(event -> event.getLevel().isGreaterOrEqual(Level.DEBUG)));
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 
     @Test
