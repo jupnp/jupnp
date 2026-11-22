@@ -61,6 +61,9 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
 
     protected LocalGENASubscription subscription;
 
+    // Only the request that created the subscription establishes or discards it, a renewal never does
+    private boolean newSubscription;
+
     public ReceivingSubscribe(UpnpService upnpService, StreamRequestMessage inputMessage) {
         super(upnpService, inputMessage);
     }
@@ -182,6 +185,7 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         }
 
         logger.trace("Adding subscription to registry: {}", subscription);
+        newSubscription = true;
         getUpnpService().getRegistry().addLocalSubscription(subscription);
 
         logger.trace("Returning subscription response, waiting to send initial event");
@@ -193,8 +197,17 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         if (subscription == null) {
             return; // Preconditions failed very early on
         }
-        if (responseMessage != null && !responseMessage.getOperation().isFailed()
-                && subscription.getCurrentSequence().getValue() == 0) { // Note that renewals should not have 0
+        if (!newSubscription) {
+            // A renewal, its subscription is established already. The sequence can't tell us, it is still 0
+            // until the initial event has been prepared.
+            return;
+        }
+        if (responseMessage != null && !responseMessage.getOperation().isFailed()) {
+
+            // Prepare the initial event message before we register on the service. Once registered, any change of
+            // the service's state replaces the values the subscription has read for its initial event, and the event
+            // message that is prepared first takes them (and sequence number 0).
+            SendingEvent initialEvent = getUpnpService().getProtocolFactory().createSendingEvent(subscription);
 
             // This is a minor concurrency issue: If we now register on the service and henceforth send a new
             // event message whenever the state of the service changes, there is still a chance that the initial
@@ -203,13 +216,25 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
             // surprised though if actual implementations won't crash!
             logger.trace("Establishing subscription");
             subscription.registerOnService();
+
+            // The subscription has been in the registry, with its duration running, since the request was
+            // processed, and how long the delivery of the response takes is up to the subscriber. If it expired,
+            // was unsubscribed or removed with its device in the meantime, whoever removed it has ended it already
+            // and nobody else is going to remove the listener we have just registered. Checking after registering
+            // leaves no gap: a later removal finds the listener in end().
+            if (getUpnpService().getRegistry().getLocalSubscription(subscription.getSubscriptionId()) != subscription) {
+                logger.trace("Subscription was removed before its response was sent, not establishing: {}",
+                        subscription);
+                subscription.end(null);
+                return;
+            }
+
             subscription.establish();
 
             logger.trace("Response to subscription sent successfully, now sending initial event asynchronously");
-            getUpnpService().getConfiguration().getAsyncProtocolExecutor()
-                    .execute(getUpnpService().getProtocolFactory().createSendingEvent(subscription));
+            getUpnpService().getConfiguration().getAsyncProtocolExecutor().execute(initialEvent);
 
-        } else if (subscription.getCurrentSequence().getValue() == 0) {
+        } else {
             logger.trace("Subscription request's response aborted, not sending initial event");
             if (responseMessage == null) {
                 logger.trace("Reason: No response at all from subscriber");
@@ -225,6 +250,9 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
     public void responseException(Throwable t) {
         if (subscription == null) {
             return; // Nothing to do, we didn't get that far
+        }
+        if (!newSubscription) {
+            return; // A renewal, the established subscription stays until it expires or is unsubscribed
         }
         logger.trace("Response could not be send to subscriber, removing local GENA subscription: {}", subscription);
         getUpnpService().getRegistry().removeLocalSubscription(subscription);
