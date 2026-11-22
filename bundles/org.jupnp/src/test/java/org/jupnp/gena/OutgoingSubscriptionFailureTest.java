@@ -208,6 +208,68 @@ class OutgoingSubscriptionFailureTest {
                 .getFirstHeader(UpnpHeader.Type.SID, SubscriptionIdHeader.class).getValue());
     }
 
+    @Test
+    void subscriptionRenewalInvalidResponseHeaders() {
+        MockUpnpService upnpService = new MockUpnpService() {
+            @Override
+            protected MockRouter createRouter() {
+                return new MockRouter(getConfiguration(), getProtocolFactory()) {
+                    @Override
+                    public StreamResponseMessage[] getStreamResponseMessages() {
+                        // The renewal is answered with 200 OK but without SID and TIMEOUT headers
+                        return new StreamResponseMessage[] { createSubscribeResponseMessage(),
+                                new StreamResponseMessage(new UpnpResponse(UpnpResponse.Status.OK)) };
+                    }
+                };
+            }
+        };
+        upnpService.startup();
+
+        final List<CancelReason> endedReasons = new ArrayList<>();
+
+        // Register remote device and its service
+        RemoteDevice device = SampleData.createRemoteDevice();
+        upnpService.getRegistry().addDevice(device);
+
+        RemoteService service = SampleData.getFirstService(device);
+
+        SubscriptionCallback callback = new SubscriptionCallback(service) {
+            @Override
+            protected void failed(GENASubscription subscription, UpnpResponse responseStatus, Exception exception,
+                    String defaultMsg) {
+                fail(defaultMsg);
+            }
+
+            @Override
+            public void established(GENASubscription subscription) {
+            }
+
+            @Override
+            public void ended(GENASubscription subscription, CancelReason reason, UpnpResponse responseStatus) {
+                endedReasons.add(reason);
+            }
+
+            @Override
+            public void eventReceived(GENASubscription subscription) {
+            }
+
+            @Override
+            public void eventsMissed(GENASubscription subscription, int numberOfMissedEvents) {
+            }
+        };
+
+        upnpService.getControlPoint().execute(callback);
+
+        RemoteGENASubscription subscription = (RemoteGENASubscription) callback.getSubscription();
+        assertSame(subscription, upnpService.getRegistry().getRemoteSubscription("uuid:1234"));
+
+        upnpService.getProtocolFactory().createSendingRenewal(subscription).run();
+
+        // A failed renewal ends the subscription and removes it from the registry
+        assertEquals(List.of(CancelReason.RENEWAL_FAILED), endedReasons);
+        assertNull(upnpService.getRegistry().getRemoteSubscription("uuid:1234"));
+    }
+
     protected StreamResponseMessage createSubscribeResponseMessage() {
         StreamResponseMessage msg = new StreamResponseMessage(new UpnpResponse(UpnpResponse.Status.OK));
         msg.getHeaders().add(UpnpHeader.Type.SID, new SubscriptionIdHeader("uuid:1234"));
@@ -236,5 +298,73 @@ class OutgoingSubscriptionFailureTest {
 
         return new IncomingEventRequestMessage(outgoing,
                 ((RemoteGENASubscription) callback.getSubscription()).getService());
+    }
+
+    @Test
+    void subscriptionDeviceRemovedBeforeResponse() {
+        MockUpnpService upnpService = new MockUpnpService() {
+            @Override
+            protected MockRouter createRouter() {
+                return new MockRouter(getConfiguration(), getProtocolFactory()) {
+                    @Override
+                    public StreamResponseMessage getStreamResponseMessage(StreamRequestMessage request) {
+                        // Simulate a device that says byebye before it answers the subscription request
+                        getRegistry().removeAllRemoteDevices();
+                        return createSubscribeResponseMessage();
+                    }
+                };
+            }
+        };
+        upnpService.startup();
+
+        final List<Boolean> testAssertions = new ArrayList<>();
+
+        // Register remote device and its service
+        RemoteDevice device = SampleData.createRemoteDevice();
+        upnpService.getRegistry().addDevice(device);
+
+        RemoteService service = SampleData.getFirstService(device);
+
+        SubscriptionCallback callback = new SubscriptionCallback(service) {
+            @Override
+            protected void failed(GENASubscription subscription, UpnpResponse responseStatus, Exception exception,
+                    String defaultMsg) {
+                assertNull(responseStatus);
+                assertNull(exception);
+                testAssertions.add(true);
+            }
+
+            @Override
+            public void established(GENASubscription subscription) {
+                testAssertions.add(false);
+            }
+
+            @Override
+            public void ended(GENASubscription subscription, CancelReason reason, UpnpResponse responseStatus) {
+                testAssertions.add(false);
+            }
+
+            @Override
+            public void eventReceived(GENASubscription subscription) {
+                testAssertions.add(false);
+            }
+
+            @Override
+            public void eventsMissed(GENASubscription subscription, int numberOfMissedEvents) {
+                testAssertions.add(false);
+            }
+        };
+
+        upnpService.getControlPoint().execute(callback);
+
+        assertEquals(1, testAssertions.size());
+        for (Boolean testAssertion : testAssertions) {
+            assertTrue(testAssertion);
+        }
+
+        // The subscription must not outlive its device in the registry
+        assertEquals(1, upnpService.getRouter().getSentStreamRequestMessages().size());
+        assertNull(upnpService.getRegistry().getRemoteSubscription("uuid:1234"));
+        assertNull(callback.getSubscription());
     }
 }

@@ -550,6 +550,22 @@ public class RegistryImpl implements Registry {
     }
 
     @Override
+    public boolean addRemoteSubscriptionIfDevicePresent(RemoteGENASubscription subscription) {
+        remoteItemsLock.writeLock().lock();
+        try {
+            // The device might have been removed while the subscription request was outstanding, nothing
+            // would remove (or deliver an event to) its subscription then
+            if (!remoteItems.contains(subscription.getService().getDevice().getRoot())) {
+                return false;
+            }
+            remoteItems.addSubscription(subscription);
+            return true;
+        } finally {
+            remoteItemsLock.writeLock().unlock();
+        }
+    }
+
+    @Override
     public RemoteGENASubscription getRemoteSubscription(String subscriptionId) {
         remoteItemsLock.readLock().lock();
         try {
