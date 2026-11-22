@@ -153,8 +153,9 @@ public class UPnPActionImpl implements UPnPAction {
                             logger.error("Cannot convert variable {} to OSGi type {}.", name,
                                     argument.getDatatype().getDisplayString());
                             // throw an exception
+                        } else {
+                            output.put(name, value);
                         }
-                        output.put(name, value);
                     }
                 }
             }

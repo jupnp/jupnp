@@ -20,10 +20,12 @@ import java.util.Dictionary;
 import java.util.Hashtable;
 
 import org.jupnp.model.action.ActionArgumentValue;
+import org.jupnp.model.action.ActionException;
 import org.jupnp.model.action.ActionExecutor;
 import org.jupnp.model.action.ActionInvocation;
 import org.jupnp.model.meta.ActionArgument;
 import org.jupnp.model.meta.LocalService;
+import org.jupnp.model.types.ErrorCode;
 import org.jupnp.model.types.InvalidValueException;
 import org.jupnp.osgi.util.OSGiDataConverter;
 import org.osgi.service.upnp.UPnPAction;
@@ -54,7 +56,16 @@ class UPnPActionExecutor implements ActionExecutor {
         for (ActionArgumentValue<LocalService> input : inputs) {
             ActionArgument<?> argument = input.getArgument();
 
-            args.put(argument.getName(), OSGiDataConverter.toOSGiValue(input.getDatatype(), input.getValue()));
+            Object value = OSGiDataConverter.toOSGiValue(input.getDatatype(), input.getValue());
+            if (value == null) {
+                // A Dictionary cannot hold null values, and the action cannot be invoked without this argument
+                actionInvocation.setFailure(
+                        new ActionException(ErrorCode.ARGUMENT_VALUE_INVALID, "Cannot convert value of argument '"
+                                + argument.getName() + "' to OSGi type " + input.getDatatype().getDisplayString()));
+                return;
+            }
+
+            args.put(argument.getName(), value);
         }
 
         try {
