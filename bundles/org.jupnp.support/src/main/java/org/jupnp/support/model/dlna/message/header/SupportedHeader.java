@@ -33,7 +33,12 @@ public class SupportedHeader extends DLNAHeader<String[]> {
             if (s.endsWith(";")) {
                 s = s.substring(0, s.length() - 1);
             }
-            setValue(s.split("\\s*,\\s*"));
+            // Split at the separator and trim: a "\\s*,\\s*" regex backtracks quadratically on long whitespace runs
+            String[] list = s.split(",");
+            for (int i = 0; i < list.length; i++) {
+                list[i] = list[i].trim();
+            }
+            setValue(list);
             return;
         }
         throw new InvalidHeaderException("Invalid Supported header value: " + s);

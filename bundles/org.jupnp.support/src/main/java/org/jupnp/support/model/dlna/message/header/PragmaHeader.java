@@ -41,10 +41,11 @@ public class PragmaHeader extends DLNAHeader<List<PragmaType>> {
             if (s.endsWith(";")) {
                 s = s.substring(0, s.length() - 1);
             }
-            String[] list = s.split("\\s*;\\s*");
+            // Split at the separator and trim: a "\\s*;\\s*" regex backtracks quadratically on long whitespace runs
+            String[] list = s.split(";");
             List<PragmaType> value = new ArrayList<>();
             for (String pragma : list) {
-                value.add(PragmaType.valueOf(pragma));
+                value.add(PragmaType.valueOf(pragma.trim()));
             }
             return;
         }

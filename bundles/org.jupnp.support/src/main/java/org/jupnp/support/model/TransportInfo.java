@@ -28,14 +28,18 @@ public class TransportInfo {
     private TransportState currentTransportState = TransportState.NO_MEDIA_PRESENT;
     private TransportStatus currentTransportStatus = TransportStatus.OK;
     private String currentSpeed = "1";
+    private String currentTransportStateValue;
+    private String currentTransportStatusValue;
 
     public TransportInfo() {
     }
 
     public TransportInfo(Map<String, ActionArgumentValue<?>> args) {
-        this(TransportState.valueOrCustomOf((String) args.get("CurrentTransportState").getValue()),
-                TransportStatus.valueOrCustomOf((String) args.get("CurrentTransportStatus").getValue()),
-                (String) args.get("CurrentSpeed").getValue());
+        this.currentTransportStateValue = (String) args.get("CurrentTransportState").getValue();
+        this.currentTransportStatusValue = (String) args.get("CurrentTransportStatus").getValue();
+        this.currentTransportState = TransportState.valueOrCustomOf(currentTransportStateValue);
+        this.currentTransportStatus = TransportStatus.valueOrCustomOf(currentTransportStatusValue);
+        this.currentSpeed = (String) args.get("CurrentSpeed").getValue();
     }
 
     public TransportInfo(TransportState currentTransportState) {
@@ -65,6 +69,22 @@ public class TransportInfo {
 
     public TransportStatus getCurrentTransportStatus() {
         return currentTransportStatus;
+    }
+
+    /**
+     * @return The transport state as the device reported it, this is the vendor-defined value if the state is
+     *         {@link TransportState#CUSTOM}.
+     */
+    public String getCurrentTransportStateValue() {
+        return currentTransportStateValue != null ? currentTransportStateValue : currentTransportState.name();
+    }
+
+    /**
+     * @return The transport status as the device reported it, this is the vendor-defined value if the status is
+     *         {@link TransportStatus#CUSTOM}.
+     */
+    public String getCurrentTransportStatusValue() {
+        return currentTransportStatusValue != null ? currentTransportStatusValue : currentTransportStatus.name();
     }
 
     public String getCurrentSpeed() {

@@ -18,8 +18,7 @@ package org.jupnp.support.renderingcontrol.lastchange;
 import java.util.Map;
 
 import org.jupnp.model.types.Datatype;
-import org.jupnp.model.types.UnsignedIntegerTwoBytes;
-import org.jupnp.model.types.UnsignedIntegerTwoBytesDatatype;
+import org.jupnp.model.types.IntegerDatatype;
 import org.jupnp.support.lastchange.EventedValue;
 import org.jupnp.support.model.Channel;
 import org.jupnp.support.shared.AbstractMap;
@@ -47,7 +46,8 @@ public class EventedValueChannelVolumeDB extends EventedValue<ChannelVolumeDB> {
                 channel = Channel.valueOf(attribute.getValue());
             }
             if (attribute.getKey().equals("val")) {
-                volumeDB = new UnsignedIntegerTwoBytesDatatype().valueOf(attribute.getValue()).getValue().intValue();
+                // VolumeDB is a signed "i2" state variable (1/256 dB), unlike the "ui2" Volume
+                volumeDB = new IntegerDatatype(2).valueOf(attribute.getValue());
             }
         }
         return channel != null && volumeDB != null ? new ChannelVolumeDB(channel, volumeDB) : null;
@@ -57,9 +57,7 @@ public class EventedValueChannelVolumeDB extends EventedValue<ChannelVolumeDB> {
     @Override
     public Map.Entry<String, String>[] getAttributes() {
         return new Map.Entry[] {
-                new AbstractMap.SimpleEntry<>("val",
-                        new UnsignedIntegerTwoBytesDatatype()
-                                .getString(new UnsignedIntegerTwoBytes(getValue().getVolumeDB()))),
+                new AbstractMap.SimpleEntry<>("val", new IntegerDatatype(2).getString(getValue().getVolumeDB())),
                 new AbstractMap.SimpleEntry<>("channel", getValue().getChannel().name()) };
     }
 
