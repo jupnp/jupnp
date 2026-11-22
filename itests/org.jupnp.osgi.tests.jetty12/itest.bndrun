@@ -56,7 +56,6 @@ Export-Package:
 # done
 #
 -runbundles: \
-	biz.aQute.tester.junit-platform;version='[7.4.0,7.4.1)',\
 	junit-jupiter-api;version='[5.10.1,5.10.2)',\
 	junit-jupiter-engine;version='[5.10.1,5.10.2)',\
 	junit-platform-commons;version='[1.10.1,1.10.2)',\
@@ -85,4 +84,5 @@ Export-Package:
 	org.objectweb.asm.commons;version='[9.10.1,9.10.2)',\
 	org.objectweb.asm.tree;version='[9.10.1,9.10.2)',\
 	org.objectweb.asm.tree.analysis;version='[9.10.1,9.10.2)',\
-	org.objectweb.asm.util;version='[9.10.1,9.10.2)'
+	org.objectweb.asm.util;version='[9.10.1,9.10.2)',\
+	biz.aQute.tester.junit-platform;version='[7.5.0,7.5.1)'
