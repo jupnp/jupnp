@@ -11,7 +11,7 @@
 Test-Cases: ${classes;CONCRETE;PUBLIC;NAMED;*Test}
 
 -runfw: org.eclipse.osgi
--runee: JavaSE-11
+-runee: ${bnd.testing.runee}
 
 # An unused random HTTP port is used during tests to prevent resource conflicts
 # This property is set by the build-helper-maven-plugin in the itests pom.xml

@@ -18,7 +18,7 @@
     <basedirRoot>../..</basedirRoot>
     <maven.deploy.skip>true</maven.deploy.skip>
     <pax.logging.version>2.3.4</pax.logging.version>
-    <pax.web.version>8.0.25</pax.web.version>
+    <pax.web.version>8.0.36</pax.web.version>
   </properties>
 
   <dependencies>

@@ -57,22 +57,27 @@
     <basedirRoot>.</basedirRoot>
     <bndFile>${basedirRoot}/bnd.bnd</bndFile>
     <maven.compiler.release>11</maven.compiler.release>
+    <!-- Maven 3.10+ sets a default outputTimestamp, which makes bnd keep a literal SNAPSHOT qualifier instead of a
+      build timestamp. A single character disables reproducible builds and restores timestamped snapshot versions. -->
+    <project.build.outputTimestamp>-</project.build.outputTimestamp>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
     <android.version>4.1.1.4</android.version>
     <args4j.version>2.0.12</args4j.version>
     <bnd.version>6.4.0</bnd.version>
-    <jetty.version>9.4.53.v20231009</jetty.version>
+    <jetty.version>9.4.58.v20250814</jetty.version>
     <junit.jupiter.version>5.10.1</junit.jupiter.version>
     <junit.platform.version>1.10.1</junit.platform.version>
-    <logback.version>1.5.35</logback.version>
+    <logback.version>1.6.2</logback.version>
     <servlet.api.version>3.1.0</servlet.api.version>
-    <slf4j.version>2.0.11</slf4j.version>
+    <slf4j.version>2.0.18</slf4j.version>
     <osgi.version>7.0.0</osgi.version>
 
-    <spotless.version>2.44.3</spotless.version>
-    <!-- Eclipse Java formatter version 4.26+ does not check test files -->
-    <spotless.eclipse.version>4.25</spotless.eclipse.version>
+    <bnd.testing.runee>JavaSE-11</bnd.testing.runee>
+    <bnd.testing.resolve>true</bnd.testing.resolve>
+
+    <spotless.version>3.10.4</spotless.version>
+    <spotless.eclipse.version>4.41</spotless.eclipse.version>
     <spotless.eclipse.wtp.version>4.21.0</spotless.eclipse.wtp.version>
   </properties>
 
@@ -127,6 +132,10 @@
           <groupId>biz.aQute.bnd</groupId>
           <artifactId>bnd-testing-maven-plugin</artifactId>
           <version>${bnd.version}</version>
+          <configuration>
+            <resolve>${bnd.testing.resolve}</resolve>
+            <failOnChanges>false</failOnChanges>
+          </configuration>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -141,12 +150,12 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.15.0</version>
+          <version>3.16.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-deploy-plugin</artifactId>
-          <version>3.1.4</version>
+          <version>3.2.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -156,7 +165,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-install-plugin</artifactId>
-          <version>3.1.4</version>
+          <version>3.2.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -188,7 +197,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>3.5.6</version>
+          <version>3.6.1</version>
           <configuration>
             <redirectTestOutputToFile>true</redirectTestOutputToFile>
             <systemPropertyVariables>
@@ -199,20 +208,20 @@
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>build-helper-maven-plugin</artifactId>
-          <version>3.6.1</version>
+          <version>3.8.0</version>
         </plugin>
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>versions-maven-plugin</artifactId>
-          <version>2.21.0</version>
+          <version>2.25.1</version>
         </plugin>
         <plugin>
           <groupId>org.sonatype.central</groupId>
           <artifactId>central-publishing-maven-plugin</artifactId>
-          <version>0.11.0</version>
+          <version>0.12.0</version>
           <extensions>true</extensions>
           <configuration>
-            <publishingServerId>central</publishingServerId>
+            <publishingServerId>sonatype-central</publishingServerId>
             <autoPublish>false</autoPublish>
             <!--
             <autoPublish>true</autoPublish>
@@ -269,7 +278,7 @@
         <plugin>
           <groupId>com.mycila</groupId>
           <artifactId>license-maven-plugin</artifactId>
-          <version>5.1.1</version>
+          <version>5.1.2</version>
           <configuration>
             <basedir>${basedir}</basedir>
             <quiet>false</quiet>
@@ -301,10 +310,6 @@
 
     <plugins>
       <plugin>
-        <groupId>com.diffplug.spotless</groupId>
-        <artifactId>spotless-maven-plugin</artifactId>
-      </plugin>
-      <plugin>
         <groupId>com.mycila</groupId>
         <artifactId>license-maven-plugin</artifactId>
         <executions>
@@ -324,6 +329,18 @@
   </build>
 
   <profiles>
+    <profile>
+      <id>bnd-java17-plus</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <properties>
+        <bnd.testing.runee>JavaSE-17</bnd.testing.runee>
+        <bnd.testing.resolve>false</bnd.testing.resolve>
+        <bnd.version>7.5.0</bnd.version>
+      </properties>
+    </profile>
+
     <profile>
       <id>bnd-specific-profile</id>
       <activation>
@@ -362,6 +379,22 @@
         </plugins>
       </build>
     </profile>
+
+    <profile>
+      <id>spotless-java17-plus</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>com.diffplug.spotless</groupId>
+            <artifactId>spotless-maven-plugin</artifactId>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
   </profiles>
 
 </project>

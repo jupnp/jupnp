@@ -5,12 +5,14 @@ on:
   push:
     branches:
       - 'main'
+      - '[0-9]+.[0-9]+.x'
     paths:
       - '.github/workflows/deploy-website.yml'
       - 'website/**'
   pull_request:
     branches:
       - 'main'
+      - '[0-9]+.[0-9]+.x'
     paths:
       - '.github/workflows/deploy-website.yml'
       - 'website/**'
@@ -23,7 +25,7 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -63,7 +65,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     if: success() && github.ref == 'refs/heads/main'
     needs: build
     # Allow one concurrent deployment
