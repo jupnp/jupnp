@@ -61,6 +61,16 @@ jobs:
               echo "::error::Both versions must be in the $series.x release line"
               exit 1
             fi
+
+            if [[ "$RELEASE_VERSION" != *.M* ]]; then
+              release_patch="${RELEASE_VERSION##*.}"
+              snapshot_version="${NEXT_SNAPSHOT_VERSION%-SNAPSHOT}"
+              snapshot_patch="${snapshot_version##*.}"
+              if ! printf '%s\n' "$release_patch" "$snapshot_patch" | LC_ALL=C sort --numeric-sort --check=quiet --unique; then
+                echo "::error::Next snapshot $NEXT_SNAPSHOT_VERSION must have a higher patch number than release $RELEASE_VERSION"
+                exit 1
+              fi
+            fi
           fi
 
       - name: Create GitHub App token
