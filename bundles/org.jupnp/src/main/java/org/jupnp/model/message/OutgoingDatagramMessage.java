@@ -19,6 +19,10 @@ import java.net.InetAddress;
 
 /**
  * A UDP datagram request or response message for sending, with destination address and port.
+ * <p>
+ * Optionally holds the local address the message should be sent from, e.g. a search response
+ * is sent from the address on which the search request was received.
+ * </p>
  *
  * @author Christian Bauer
  */
@@ -26,6 +30,7 @@ public abstract class OutgoingDatagramMessage<O extends UpnpOperation> extends U
 
     private InetAddress destinationAddress;
     private int destinationPort;
+    private InetAddress localAddress;
     // For performance reasons, headers of this message are not normalized
     private UpnpHeaders headers = new UpnpHeaders(false);
 
@@ -33,6 +38,12 @@ public abstract class OutgoingDatagramMessage<O extends UpnpOperation> extends U
         super(operation);
         this.destinationAddress = destinationAddress;
         this.destinationPort = destinationPort;
+    }
+
+    protected OutgoingDatagramMessage(O operation, InetAddress destinationAddress, int destinationPort,
+            InetAddress localAddress) {
+        this(operation, destinationAddress, destinationPort);
+        this.localAddress = localAddress;
     }
 
     protected OutgoingDatagramMessage(O operation, BodyType bodyType, Object body, InetAddress destinationAddress,
@@ -48,6 +59,13 @@ public abstract class OutgoingDatagramMessage<O extends UpnpOperation> extends U
 
     public int getDestinationPort() {
         return destinationPort;
+    }
+
+    /**
+     * @return The local address this message should be sent from, or <code>null</code> if there is no preference.
+     */
+    public InetAddress getLocalAddress() {
+        return localAddress;
     }
 
     @Override

@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.lang.reflect.InvocationHandler;
@@ -29,10 +30,21 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 import org.jupnp.DefaultUpnpServiceConfiguration;
+import org.jupnp.data.SampleData;
+import org.jupnp.model.Location;
+import org.jupnp.model.NetworkAddress;
+import org.jupnp.model.message.IncomingDatagramMessage;
+import org.jupnp.model.message.UpnpRequest;
+import org.jupnp.model.message.discovery.OutgoingSearchRequest;
+import org.jupnp.model.message.discovery.OutgoingSearchResponseRootDevice;
+import org.jupnp.model.message.header.STAllHeader;
+import org.jupnp.model.meta.LocalDevice;
 import org.jupnp.transport.spi.DatagramIO;
 import org.jupnp.transport.spi.InitializationException;
 import org.jupnp.transport.spi.MulticastReceiver;
@@ -118,6 +130,80 @@ class RouterImplTest {
         }
     }
 
+    /**
+     * Multicast datagrams have to be sent on all bound addresses to reach every network. A unicast datagram, such
+     * as a search response, must be sent only once and from the address the search was received on. Otherwise its
+     * destination, which is the unverified source address of the search, receives one copy for each bound address.
+     */
+    @Test
+    void unicastDatagramIsSentOnceAndMulticastDatagramOnAllBoundAddresses() throws Exception {
+        List<InetAddress> bindAddresses = List.of(InetAddress.getByName("10.99.0.1"),
+                InetAddress.getByName("10.99.1.1"), InetAddress.getByName("10.99.2.1"));
+        List<InetAddress> sentFrom = new ArrayList<>();
+        TestConfiguration configuration = new TestConfiguration(loopbackInterface(), new AtomicInteger()) {
+            @Override
+            protected List<InetAddress> getBindAddresses() {
+                return bindAddresses;
+            }
+
+            @Override
+            public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory) {
+                return proxy(StreamServer.class, (proxy, method, args) -> null);
+            }
+
+            @Override
+            public StreamClient createStreamClient() {
+                return proxy(StreamClient.class, (proxy, method, args) -> null);
+            }
+
+            @Override
+            public DatagramIO createDatagramIO(NetworkAddressFactory networkAddressFactory) {
+                AtomicReference<InetAddress> bindAddress = new AtomicReference<>();
+                return proxy(DatagramIO.class, (proxy, method, args) -> {
+                    if ("init".equals(method.getName())) {
+                        bindAddress.set((InetAddress) args[0]);
+                    } else if ("send".equals(method.getName())) {
+                        sentFrom.add(bindAddress.get());
+                    }
+                    return null;
+                });
+            }
+        };
+        try {
+            RouterImpl router = new RouterImpl(configuration, null);
+            assertTrue(router.enable());
+
+            router.send(new OutgoingSearchRequest(new STAllHeader(), 1));
+            assertEquals(3, sentFrom.size());
+            assertEquals(Set.copyOf(bindAddresses), Set.copyOf(sentFrom));
+
+            LocalDevice localDevice = SampleData.createLocalDevice();
+            for (InetAddress receivedOnAddress : bindAddresses) {
+                sentFrom.clear();
+                router.send(createSearchResponse(receivedOnAddress, localDevice));
+                assertEquals(List.of(receivedOnAddress), sentFrom);
+            }
+
+            // no datagram I/O is bound to the address the search was received on
+            sentFrom.clear();
+            router.send(createSearchResponse(InetAddress.getByName("10.99.3.1"), localDevice));
+            assertEquals(1, sentFrom.size());
+
+            assertTrue(router.disable());
+        } finally {
+            configuration.shutdown();
+        }
+    }
+
+    private static OutgoingSearchResponseRootDevice createSearchResponse(InetAddress receivedOnAddress,
+            LocalDevice localDevice) throws Exception {
+        IncomingDatagramMessage<UpnpRequest> searchRequest = new IncomingDatagramMessage<>(
+                new UpnpRequest(UpnpRequest.Method.MSEARCH), InetAddress.getByName("10.99.0.2"), 1900,
+                receivedOnAddress);
+        return new OutgoingSearchResponseRootDevice(searchRequest,
+                new Location(new NetworkAddress(receivedOnAddress, 8080), "/desc"), localDevice);
+    }
+
     private static NetworkInterface loopbackInterface() throws SocketException {
         NetworkInterface networkInterface = NetworkInterface.getByInetAddress(InetAddress.getLoopbackAddress());
         assumeTrue(networkInterface != null, "loopback interface required for this test");
@@ -125,8 +211,8 @@ class RouterImplTest {
     }
 
     /**
-     * One network interface and the loopback bind address, a multicast receiver counting its stops and no
-     * datagram I/O.
+     * One network interface and the loopback bind address (unless overridden), a multicast receiver counting its
+     * stops and no datagram I/O.
      */
     private static class TestConfiguration extends DefaultUpnpServiceConfiguration {
         private final NetworkInterface networkInterface;
@@ -137,10 +223,14 @@ class RouterImplTest {
             this.receiverStops = receiverStops;
         }
 
+        protected List<InetAddress> getBindAddresses() {
+            return List.of(InetAddress.getLoopbackAddress());
+        }
+
         @Override
         public NetworkAddressFactory createNetworkAddressFactory() {
             List<NetworkInterface> interfaces = new ArrayList<>(List.of(networkInterface));
-            List<InetAddress> bindAddresses = new ArrayList<>(List.of(InetAddress.getLoopbackAddress()));
+            List<InetAddress> bindAddresses = new ArrayList<>(getBindAddresses());
             return proxy(NetworkAddressFactory.class, (proxy, method, args) -> {
                 switch (method.getName()) {
                     case "getNetworkInterfaces":

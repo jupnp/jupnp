@@ -306,7 +306,14 @@ public class RouterImpl implements Router {
     }
 
     /**
-     * Sends the UDP datagram on all bound {@link org.jupnp.transport.spi.DatagramIO}s.
+     * Sends the UDP datagram on all bound {@link org.jupnp.transport.spi.DatagramIO}s if it is addressed to a
+     * multicast group.
+     * <p>
+     * A unicast datagram (e.g. a search response) is sent only once, otherwise its destination would receive one
+     * copy for each bound address. It is sent with the <code>DatagramIO</code> bound to the
+     * {@link OutgoingDatagramMessage#getLocalAddress() local address} of the message, or with any
+     * <code>DatagramIO</code> if there is none for that address.
+     * </p>
      *
      * @param msg The UDP datagram message to send.
      */
@@ -315,7 +322,15 @@ public class RouterImpl implements Router {
         lock(readLock);
         try {
             if (enabled) {
-                for (DatagramIO datagramIO : datagramIOs.values()) {
+                if (msg.getDestinationAddress().isMulticastAddress()) {
+                    for (DatagramIO datagramIO : datagramIOs.values()) {
+                        datagramIO.send(msg);
+                    }
+                } else if (!datagramIOs.isEmpty()) {
+                    DatagramIO datagramIO = datagramIOs.get(msg.getLocalAddress());
+                    if (datagramIO == null) {
+                        datagramIO = datagramIOs.values().iterator().next();
+                    }
                     datagramIO.send(msg);
                 }
             } else {

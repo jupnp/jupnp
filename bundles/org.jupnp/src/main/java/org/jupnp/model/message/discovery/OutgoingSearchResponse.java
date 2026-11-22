@@ -35,7 +35,8 @@ public class OutgoingSearchResponse extends OutgoingDatagramMessage<UpnpResponse
 
     public OutgoingSearchResponse(IncomingDatagramMessage request, Location location, LocalDevice device) {
 
-        super(new UpnpResponse(UpnpResponse.Status.OK), request.getSourceAddress(), request.getSourcePort());
+        super(new UpnpResponse(UpnpResponse.Status.OK), request.getSourceAddress(), request.getSourcePort(),
+                request.getLocalAddress());
 
         getHeaders().add(UpnpHeader.Type.MAX_AGE, new MaxAgeHeader(device.getIdentity().getMaxAgeSeconds()));
         getHeaders().add(UpnpHeader.Type.LOCATION, new LocationHeader(location.getURL()));

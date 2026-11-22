@@ -20,6 +20,11 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.SocketException;
+import java.util.Arrays;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import org.jupnp.model.UnsupportedDataException;
 import org.jupnp.model.message.OutgoingDatagramMessage;
@@ -47,7 +52,11 @@ import org.slf4j.LoggerFactory;
  */
 public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
 
+    private static final int SEND_QUEUE_SIZE = 256;
+    private static final long SEND_DRAIN_MILLIS = 250;
+
     private final Logger logger = LoggerFactory.getLogger(DatagramIOImpl.class);
+    private ThreadPoolExecutor sender;
 
     /*
      * Implementation notes for unicast/multicast UDP:
@@ -65,7 +74,7 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
     protected DatagramProcessor datagramProcessor;
 
     protected InetSocketAddress localAddress;
-    protected MulticastSocket socket; // For sending unicast & multicast, and reveiving unicast
+    protected MulticastSocket socket; // For sending unicast & multicast, and receiving unicast
 
     public DatagramIOImpl(DatagramIOConfigurationImpl configuration) {
         this.configuration = configuration;
@@ -93,15 +102,39 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
             socket = new MulticastSocket(localAddress);
             socket.setTimeToLive(configuration.getTimeToLive());
             socket.setReceiveBufferSize(262144); // Keep a backlog of incoming datagrams if we are not fast enough
+            sender = new ThreadPoolExecutor(0, 1, 10, TimeUnit.SECONDS, new ArrayBlockingQueue<>(SEND_QUEUE_SIZE),
+                    task -> {
+                        Thread thread = new Thread(task, "jupnp-datagram-send");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
         } catch (Exception e) {
+            if (socket != null) {
+                socket.close();
+            }
             throw new InitializationException("Could not initialize " + getClass().getSimpleName(), e);
         }
     }
 
     @Override
     public synchronized void stop() {
-        if (socket != null && !socket.isClosed()) {
-            socket.close();
+        if (sender != null) {
+            sender.shutdown();
+        }
+        try {
+            if (sender != null && socket != null && !socket.isClosed()) {
+                // Give queued shutdown advertisements a chance to go out before closing their source socket.
+                sender.awaitTermination(SEND_DRAIN_MILLIS, TimeUnit.MILLISECONDS);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            if (socket != null) {
+                socket.close();
+            }
+            if (sender != null) {
+                sender.shutdownNow();
+            }
         }
     }
 
@@ -156,10 +189,25 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
 
     @Override
     public synchronized void send(DatagramPacket datagram) {
-        logger.debug("Sending message from address: {}", localAddress);
-
+        if (sender == null || sender.isShutdown() || socket == null || socket.isClosed()) {
+            return;
+        }
+        // Some callers reuse the packet as soon as send() returns.
+        byte[] payload = Arrays.copyOfRange(datagram.getData(), datagram.getOffset(),
+                datagram.getOffset() + datagram.getLength());
+        DatagramPacket copy = new DatagramPacket(payload, payload.length, datagram.getSocketAddress());
+        MulticastSocket sendingSocket = socket;
         try {
-            socket.send(datagram);
+            sender.execute(() -> sendPacket(sendingSocket, copy));
+        } catch (RejectedExecutionException e) {
+            logger.debug("Datagram send queue is full on {}", localAddress);
+        }
+    }
+
+    // Socket.send() can block on address resolution. Only the sender for this socket waits.
+    void sendPacket(MulticastSocket sendingSocket, DatagramPacket datagram) {
+        try {
+            sendingSocket.send(datagram);
         } catch (SocketException e) {
             logger.debug("Socket closed, aborting datagram send to: {}", datagram.getAddress());
         } catch (RuntimeException e) {
@@ -172,8 +220,9 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
                 logger.error(
                         "  Details: socket={}, closed={}, bound={}, inetAddress={}, "
                                 + "remoteSocketAddress={}, networkInterface={}",
-                        socket.toString(), socket.isClosed(), socket.isBound(), socket.getInetAddress(),
-                        socket.getRemoteSocketAddress(), socket.getNetworkInterface());
+                        sendingSocket, sendingSocket.isClosed(), sendingSocket.isBound(),
+                        sendingSocket.getInetAddress(), sendingSocket.getRemoteSocketAddress(),
+                        sendingSocket.getNetworkInterface());
             } catch (SocketException ex2) {
                 logger.error("  Details: could not get network interface", ex2);
             }

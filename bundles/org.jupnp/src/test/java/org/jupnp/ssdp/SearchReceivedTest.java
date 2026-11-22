@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import org.jupnp.UpnpService;
@@ -47,9 +48,17 @@ import org.jupnp.model.message.header.ServiceUSNHeader;
 import org.jupnp.model.message.header.UDNHeader;
 import org.jupnp.model.message.header.USNRootDeviceHeader;
 import org.jupnp.model.message.header.UpnpHeader;
+import org.jupnp.model.meta.DeviceDetails;
 import org.jupnp.model.meta.LocalDevice;
+import org.jupnp.model.meta.RemoteDevice;
+import org.jupnp.model.meta.RemoteService;
 import org.jupnp.model.meta.Service;
+import org.jupnp.model.types.DeviceType;
 import org.jupnp.model.types.NotificationSubtype;
+import org.jupnp.model.types.ServiceType;
+import org.jupnp.model.types.UDADeviceType;
+import org.jupnp.model.types.UDAServiceType;
+import org.jupnp.model.types.UDN;
 import org.jupnp.protocol.async.ReceivingSearch;
 import org.jupnp.util.URIUtil;
 
@@ -258,6 +267,57 @@ class SearchReceivedTest {
         assertEquals(10, upnpService.getRouter().getOutgoingDatagramMessages().size());
     }
 
+    @Test
+    void receivedSearchIgnoresRemoteDevices() throws Exception {
+        MockUpnpService upnpService = new MockUpnpService();
+        upnpService.startup();
+
+        // Only local devices are advertised, a search request must not walk the remote device graphs
+        AtomicInteger remoteSearches = new AtomicInteger();
+        DeviceType deviceType = new UDADeviceType("Foo", 1);
+        RemoteDevice remoteDevice = new RemoteDevice(SampleData.createRemoteDeviceIdentity(), deviceType,
+                new DeviceDetails("Foo"), new RemoteService[0]) {
+            @Override
+            public RemoteDevice findDevice(UDN udn) {
+                remoteSearches.incrementAndGet();
+                return super.findDevice(udn);
+            }
+
+            @Override
+            public RemoteDevice[] findDevices(DeviceType deviceType) {
+                remoteSearches.incrementAndGet();
+                return super.findDevices(deviceType);
+            }
+
+            @Override
+            public RemoteDevice[] findDevices(ServiceType serviceType) {
+                remoteSearches.incrementAndGet();
+                return super.findDevices(serviceType);
+            }
+        };
+        upnpService.getRegistry().addDevice(remoteDevice);
+        assertEquals(1, upnpService.getRegistry().getRemoteDevices().size());
+        remoteSearches.set(0);
+
+        UpnpHeader[] searchTargets = { new UDNHeader(new UDN("not-registered")), new DeviceTypeHeader(deviceType),
+                new ServiceTypeHeader(new UDAServiceType("Foo", 1)) };
+
+        for (UpnpHeader searchTarget : searchTargets) {
+            IncomingSearchRequest searchMsg = createRequestMessage();
+            searchMsg.getHeaders().add(UpnpHeader.Type.MAN,
+                    new MANHeader(NotificationSubtype.DISCOVER.getHeaderString()));
+            searchMsg.getHeaders().add(UpnpHeader.Type.MX, new MXHeader(1));
+            searchMsg.getHeaders().add(UpnpHeader.Type.ST, searchTarget);
+            searchMsg.getHeaders().add(UpnpHeader.Type.HOST, new HostHeader());
+
+            ReceivingSearch prot = createProtocol(upnpService, searchMsg);
+            prot.run();
+
+            assertEquals(0, upnpService.getRouter().getOutgoingDatagramMessages().size());
+            assertEquals(0, remoteSearches.get(), "Remote devices searched for " + searchTarget.getString());
+        }
+    }
+
     protected ReceivingSearch createProtocol(UpnpService upnpService, IncomingSearchRequest searchMsg) {
         return new ReceivingSearch(upnpService, searchMsg);
     }
@@ -274,5 +334,49 @@ class SearchReceivedTest {
     protected IncomingSearchRequest createRequestMessage() throws UnknownHostException {
         return new IncomingSearchRequest(new IncomingDatagramMessage<>(new UpnpRequest(UpnpRequest.Method.MSEARCH),
                 InetAddress.getByName("127.0.0.1"), Constants.UPNP_MULTICAST_PORT, InetAddress.getByName("127.0.0.1")));
+    }
+
+    @Test
+    void receivedNonAdvertisedEmbedded() throws Exception {
+        MockUpnpService upnpService = new MockUpnpService();
+        upnpService.startup();
+
+        LocalDevice localDevice = SampleData.createLocalDevice();
+        LocalDevice embeddedDevice = localDevice.getEmbeddedDevices()[0];
+
+        // Disable advertising, the options of the root device also apply to its embedded devices
+        upnpService.getRegistry().addDevice(localDevice, new DiscoveryOptions(false));
+
+        UpnpHeader[] searchTargets = { new UDNHeader(embeddedDevice.getIdentity().getUdn()),
+                new DeviceTypeHeader(embeddedDevice.getType()),
+                new ServiceTypeHeader(embeddedDevice.getServices()[0].getServiceType()) };
+
+        for (UpnpHeader searchTarget : searchTargets) {
+            IncomingSearchRequest searchMsg = createRequestMessage();
+            searchMsg.getHeaders().add(UpnpHeader.Type.MAN,
+                    new MANHeader(NotificationSubtype.DISCOVER.getHeaderString()));
+            searchMsg.getHeaders().add(UpnpHeader.Type.MX, new MXHeader(1));
+            searchMsg.getHeaders().add(UpnpHeader.Type.ST, searchTarget);
+            searchMsg.getHeaders().add(UpnpHeader.Type.HOST, new HostHeader());
+
+            ReceivingSearch prot = createProtocol(upnpService, searchMsg);
+            prot.run();
+
+            assertEquals(0, upnpService.getRouter().getOutgoingDatagramMessages().size());
+        }
+
+        // Enable advertising
+        upnpService.getRegistry().setDiscoveryOptions(localDevice.getIdentity().getUdn(), new DiscoveryOptions(true));
+
+        IncomingSearchRequest searchMsg = createRequestMessage();
+        searchMsg.getHeaders().add(UpnpHeader.Type.MAN, new MANHeader(NotificationSubtype.DISCOVER.getHeaderString()));
+        searchMsg.getHeaders().add(UpnpHeader.Type.MX, new MXHeader(1));
+        searchMsg.getHeaders().add(UpnpHeader.Type.ST, new UDNHeader(embeddedDevice.getIdentity().getUdn()));
+        searchMsg.getHeaders().add(UpnpHeader.Type.HOST, new HostHeader());
+
+        ReceivingSearch prot = createProtocol(upnpService, searchMsg);
+        prot.run();
+
+        assertEquals(1, upnpService.getRouter().getOutgoingDatagramMessages().size());
     }
 }
