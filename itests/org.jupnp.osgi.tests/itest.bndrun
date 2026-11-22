@@ -23,10 +23,6 @@
 	junit-platform-launcher;version='[1.10.1,1.10.2)',\
 	org.apache.felix.scr;version='[2.2.10,2.2.11)',\
 	org.ops4j.pax.logging.pax-logging-api;version='[2.3.4,2.3.5)',\
-	org.jupnp;version='[3.0.6,3.0.7)',\
-	org.jupnp.device.simple;version='[3.0.6,3.0.7)',\
-	org.jupnp.osgi;version='[3.0.6,3.0.7)',\
-	org.jupnp.osgi.tests;version='[3.0.6,3.0.7)',\
 	biz.aQute.tester.junit-platform;version='[7.5.0,7.5.1)',\
 	org.eclipse.jetty.client;version='[9.4.58,9.4.59)',\
 	org.eclipse.jetty.http;version='[9.4.58,9.4.59)',\
@@ -42,4 +38,8 @@
 	org.ops4j.pax.web.pax-web-jetty;version='[8.0.36,8.0.37)',\
 	org.ops4j.pax.web.pax-web-runtime;version='[8.0.36,8.0.37)',\
 	org.ops4j.pax.web.pax-web-spi;version='[8.0.36,8.0.37)',\
-	org.ops4j.pax.web.pax-web-tomcat-common;version='[8.0.36,8.0.37)'
+	org.ops4j.pax.web.pax-web-tomcat-common;version='[8.0.36,8.0.37)',\
+	org.jupnp;version='[3.0.7,3.0.8)',\
+	org.jupnp.device.simple;version='[3.0.7,3.0.8)',\
+	org.jupnp.osgi;version='[3.0.7,3.0.8)',\
+	org.jupnp.osgi.tests;version='[3.0.7,3.0.8)'
