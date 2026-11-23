@@ -141,12 +141,12 @@ abstract class RegistryItems<D extends Device, S extends GENASubscription> {
         return deviceItems.contains(new RegistryItem<UDN, D>(udn));
     }
 
-    void addSubscription(S subscription) {
+    boolean addSubscription(S subscription) {
 
         RegistryItem<String, S> subscriptionItem = new RegistryItem<>(subscription.getSubscriptionId(), subscription,
                 subscription.getActualDurationSeconds());
 
-        subscriptionItems.add(subscriptionItem);
+        return subscriptionItems.add(subscriptionItem);
     }
 
     boolean updateSubscription(S subscription) {

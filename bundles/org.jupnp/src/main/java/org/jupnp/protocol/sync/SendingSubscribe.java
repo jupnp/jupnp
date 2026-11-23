@@ -111,7 +111,7 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
                 if (getUpnpService().getRegistry().addRemoteSubscriptionIfDevicePresent(subscription)) {
                     getUpnpService().getConfiguration().getRegistryListenerExecutor().execute(subscription::establish);
                 } else {
-                    logger.trace("Subscription failed, device is no longer registered: {}",
+                    logger.trace("Could not register subscription for device: {}",
                             subscription.getService().getDevice());
                     onSubscriptionFailure();
                 }

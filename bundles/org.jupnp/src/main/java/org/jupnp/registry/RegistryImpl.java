@@ -555,11 +555,11 @@ public class RegistryImpl implements Registry {
         try {
             // The device might have been removed while the subscription request was outstanding, nothing
             // would remove (or deliver an event to) its subscription then
-            if (!remoteItems.contains(subscription.getService().getDevice().getRoot())) {
+            RemoteDevice root = subscription.getService().getDevice().getRoot();
+            if (remoteItems.get(root.getIdentity().getUdn(), true) != root) {
                 return false;
             }
-            remoteItems.addSubscription(subscription);
-            return true;
+            return remoteItems.addSubscription(subscription);
         } finally {
             remoteItemsLock.writeLock().unlock();
         }

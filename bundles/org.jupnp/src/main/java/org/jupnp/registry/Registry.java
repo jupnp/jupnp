@@ -402,11 +402,12 @@ public interface Registry {
      * is therefore only added if that device is (still) registered.
      * </p>
      *
-     * @return <tt>false</tt> if the subscription was not added because its device is not registered.
+     * @return <tt>false</tt> if the original device is no longer registered or the subscription ID is in use.
      */
     default boolean addRemoteSubscriptionIfDevicePresent(RemoteGENASubscription subscription) {
         RemoteDevice device = subscription.getService().getDevice().getRoot();
-        if (getRemoteDevice(device.getIdentity().getUdn(), true) == null) {
+        if (getRemoteDevice(device.getIdentity().getUdn(), true) != device
+                || getRemoteSubscription(subscription.getSubscriptionId()) != null) {
             return false;
         }
         addRemoteSubscription(subscription);

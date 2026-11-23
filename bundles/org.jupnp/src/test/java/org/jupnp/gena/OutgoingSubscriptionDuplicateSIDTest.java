@@ -88,6 +88,29 @@ class OutgoingSubscriptionDuplicateSIDTest {
         assertTrue(registered.ended.isEmpty());
     }
 
+    @Test
+    void duplicateSidIsRejectedAtRegistration() {
+        MockUpnpService upnpService = createUpnpService(null);
+        TestSubscription registered = registerSubscription(upnpService, SampleData.createRemoteDevice());
+        TestSubscription collision = new TestSubscription(registered.getService());
+
+        assertFalse(upnpService.getRegistry().addRemoteSubscriptionIfDevicePresent(collision));
+        assertSame(registered, upnpService.getRegistry().getRemoteSubscription(SID));
+    }
+
+    @Test
+    void cannotEstablishAfterTermination() {
+        RemoteDevice device = SampleData.createRemoteDevice();
+        TestSubscription subscription = new TestSubscription(SampleData.getFirstService(device));
+
+        subscription.end(CancelReason.DEVICE_WAS_REMOVED, null);
+        subscription.establish();
+        subscription.end(CancelReason.DEVICE_WAS_REMOVED, null);
+
+        assertEquals(0, subscription.establishments);
+        assertEquals(List.of(CancelReason.DEVICE_WAS_REMOVED), subscription.ended);
+    }
+
     MockUpnpService createUpnpService(StreamResponseMessage response) {
         MockUpnpService upnpService = new MockUpnpService() {
             @Override
@@ -118,6 +141,7 @@ class OutgoingSubscriptionDuplicateSIDTest {
     static class TestSubscription extends RemoteGENASubscription {
 
         final List<CancelReason> ended = new ArrayList<>();
+        int establishments;
 
         TestSubscription(RemoteService service) {
             super(service, 1800);
@@ -144,6 +168,7 @@ class OutgoingSubscriptionDuplicateSIDTest {
 
         @Override
         public void established() {
+            establishments++;
         }
 
         @Override

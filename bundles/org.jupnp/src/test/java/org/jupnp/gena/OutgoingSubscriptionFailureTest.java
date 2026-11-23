@@ -302,6 +302,15 @@ class OutgoingSubscriptionFailureTest {
 
     @Test
     void subscriptionDeviceRemovedBeforeResponse() {
+        checkDeviceRemovedBeforeResponse(false);
+    }
+
+    @Test
+    void subscriptionDeviceReplacedBeforeResponse() {
+        checkDeviceRemovedBeforeResponse(true);
+    }
+
+    private void checkDeviceRemovedBeforeResponse(boolean rediscover) {
         MockUpnpService upnpService = new MockUpnpService() {
             @Override
             protected MockRouter createRouter() {
@@ -310,6 +319,9 @@ class OutgoingSubscriptionFailureTest {
                     public StreamResponseMessage getStreamResponseMessage(StreamRequestMessage request) {
                         // Simulate a device that says byebye before it answers the subscription request
                         getRegistry().removeAllRemoteDevices();
+                        if (rediscover) {
+                            getRegistry().addDevice(SampleData.createRemoteDevice());
+                        }
                         return createSubscribeResponseMessage();
                     }
                 };
