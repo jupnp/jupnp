@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -58,6 +59,9 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
     private final Logger logger = LoggerFactory.getLogger(LocalGENASubscription.class);
 
     final List<URL> callbackURLs;
+
+    private Map<String, StateVariableValue> initialEventChanges;
+    private boolean terminated;
 
     // Moderation history
     final Map<String, Long> lastSentTimestamp = new HashMap<>();
@@ -107,17 +111,46 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
      * Adds a property change listener on the {@link org.jupnp.model.ServiceManager}.
      */
     public synchronized void registerOnService() {
-        getService().getManager().getPropertyChangeSupport().addPropertyChangeListener(this);
+        if (!terminated) {
+            getService().getManager().getPropertyChangeSupport().addPropertyChangeListener(this);
+        }
+    }
+
+    /**
+     * Listen for changes while retaining the original values until the initial notification is sent.
+     */
+    public synchronized void registerForInitialEvent() {
+        if (!terminated) {
+            initialEventChanges = new LinkedHashMap<>();
+            registerOnService();
+        }
+    }
+
+    public synchronized void finishInitialEvent() {
+        if (initialEventChanges != null) {
+            Collection<StateVariableValue> changes = initialEventChanges.values();
+            initialEventChanges = null;
+            if (!changes.isEmpty()) {
+                publishChanges(changes);
+            }
+        }
     }
 
     public synchronized void establish() {
-        established();
+        if (!terminated) {
+            established();
+        }
     }
 
     /**
      * Removes a property change listener on the {@link org.jupnp.model.ServiceManager}.
      */
     public synchronized void end(CancelReason reason) {
+        if (terminated) {
+            return;
+        }
+        terminated = true;
+        initialEventChanges = null;
         try {
             getService().getManager().getPropertyChangeSupport().removePropertyChangeListener(this);
         } catch (Exception e) {
@@ -132,15 +165,24 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
      */
     @Override
     public synchronized void propertyChange(PropertyChangeEvent e) {
-        if (!e.getPropertyName().equals(ServiceManager.EVENTED_STATE_VARIABLES)) {
+        if (terminated || !e.getPropertyName().equals(ServiceManager.EVENTED_STATE_VARIABLES)) {
             return;
         }
 
         logger.trace("Eventing triggered, getting state for subscription: {}", getSubscriptionId());
 
-        long currentTime = new Date().getTime();
-
         Collection<StateVariableValue> newValues = (Collection) e.getNewValue();
+        if (initialEventChanges != null) {
+            for (StateVariableValue value : newValues) {
+                initialEventChanges.put(value.getStateVariable().getName(), value);
+            }
+            return;
+        }
+        publishChanges(newValues);
+    }
+
+    private void publishChanges(Collection<StateVariableValue> newValues) {
+        long currentTime = new Date().getTime();
         Set<String> excludedVariables = moderateStateVariables(currentTime, newValues);
 
         currentValues.clear();

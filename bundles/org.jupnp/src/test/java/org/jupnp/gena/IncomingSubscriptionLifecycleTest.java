@@ -321,8 +321,11 @@ class IncomingSubscriptionLifecycleTest {
                 return new MockProtocolFactory(service, sendsAlive) {
                     @Override
                     public SendingEvent createSendingEvent(LocalGENASubscription subscription) {
-                        // "Modify" the state of the service just before the initial event message is prepared
+                        // Change the actual state just before the initial event is serialized.
                         if (stateChanged.compareAndSet(false, true)) {
+                            GenaSampleData.LocalTestService implementation = (GenaSampleData.LocalTestService) subscription
+                                    .getService().getManager().getImplementation();
+                            implementation.setTarget(true);
                             subscription.getService().getManager().getPropertyChangeSupport()
                                     .firePropertyChange("Status", false, true);
                         }
@@ -353,12 +356,40 @@ class IncomingSubscriptionLifecycleTest {
         subscribeProt.responseSent(subscribeProt.getOutputMessage());
         assertTrue(stateChanged.get());
 
-        // The subscription wasn't listening yet, so this is the initial event and not a second one without values
         List<StreamRequestMessage> sentMessages = upnpService.getRouter().getSentStreamRequestMessages();
-        assertEquals(1, sentMessages.size());
+        assertEquals(2, sentMessages.size());
         assertEquals(0L, sentMessages.get(0).getHeaders().getFirstHeader(UpnpHeader.Type.SEQ, EventSequenceHeader.class)
                 .getValue().getValue());
+        assertEquals(1L, sentMessages.get(1).getHeaders().getFirstHeader(UpnpHeader.Type.SEQ, EventSequenceHeader.class)
+                .getValue().getValue());
         assertTrue(sentMessages.get(0).getBodyString().contains("<Status>0</Status>"));
+        assertTrue(sentMessages.get(1).getBodyString().contains("<Status>1</Status>"));
+    }
+
+    @Test
+    void skipsNotificationQueuedBeforeRemoval() throws Exception {
+        MockUpnpService upnpService = new MockUpnpService();
+        upnpService.startup();
+        LocalDevice device = GenaSampleData.createTestDevice();
+        upnpService.getRegistry().addDevice(device);
+        LocalService<?> service = SampleData.getFirstService(device);
+        Namespace namespace = upnpService.getConfiguration().getNamespace();
+        URL callback = URIUtil.createAbsoluteURL(SampleData.getLocalBaseURL(), namespace.getEventCallbackPath(service));
+        StreamRequestMessage request = new StreamRequestMessage(UpnpRequest.Method.SUBSCRIBE,
+                namespace.getEventSubscriptionPath(service));
+        request.getHeaders().add(UpnpHeader.Type.CALLBACK, new CallbackHeader(callback));
+        request.getHeaders().add(UpnpHeader.Type.NT, new NTEventHeader());
+        ReceivingSubscribe receiving = new ReceivingSubscribe(upnpService, request);
+        receiving.run();
+        String sid = receiving.getOutputMessage().getHeaders()
+                .getFirstHeader(UpnpHeader.Type.SID, SubscriptionIdHeader.class).getValue();
+        LocalGENASubscription subscription = upnpService.getRegistry().getLocalSubscription(sid);
+        SendingEvent queued = upnpService.getProtocolFactory().createSendingEvent(subscription);
+
+        assertTrue(upnpService.getRegistry().removeLocalSubscription(subscription));
+        queued.run();
+
+        assertTrue(upnpService.getRouter().getSentStreamRequestMessages().isEmpty());
     }
 
     @Test

@@ -644,7 +644,12 @@ public class RegistryImpl implements Registry {
         // executor as they are shut down next, and not while holding the lock as ended() can be application code.
         logger.trace("Ending all incoming subscriptions to local devices during shutdown");
         for (LocalGENASubscription localSubscription : localSubscriptions) {
-            localSubscription.end(CancelReason.DEVICE_WAS_REMOVED);
+            try {
+                localSubscription.end(CancelReason.DEVICE_WAS_REMOVED);
+            } catch (RuntimeException e) {
+                logger.warn("Failed to end local subscription during shutdown: {}",
+                        localSubscription.getSubscriptionId(), e);
+            }
         }
 
         for (RegistryListener listener : registryListeners) {

@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import org.jupnp.controlpoint.SubscriptionCallback;
@@ -29,6 +30,7 @@ import org.jupnp.model.Namespace;
 import org.jupnp.model.UnsupportedDataException;
 import org.jupnp.model.gena.CancelReason;
 import org.jupnp.model.gena.GENASubscription;
+import org.jupnp.model.gena.LocalGENASubscription;
 import org.jupnp.model.gena.RemoteGENASubscription;
 import org.jupnp.model.message.StreamRequestMessage;
 import org.jupnp.model.message.UpnpRequest;
@@ -86,6 +88,41 @@ class IncomingSubscriptionShutdownTest {
         // The service is still there and its state changes again, nobody must be listening anymore
         service.getManager().getPropertyChangeSupport().firePropertyChange("Status", true, false);
         assertEquals(2, upnpService.getRouter().getSentStreamRequestMessages().size());
+    }
+
+    @Test
+    void continuesShutdownWhenApplicationCallbacksThrow() throws Exception {
+        MockUpnpService upnpService = new MockUpnpService();
+        upnpService.startup();
+        LocalDevice device = GenaSampleData.createTestDevice();
+        upnpService.getRegistry().addDevice(device);
+        LocalService<?> service = SampleData.getFirstService(device);
+        AtomicInteger ended = new AtomicInteger();
+
+        for (int i = 0; i < 2; i++) {
+            LocalGENASubscription subscription = new LocalGENASubscription(service, 1800, List.of()) {
+                @Override
+                public void established() {
+                }
+
+                @Override
+                public void eventReceived() {
+                    fail("The local subscription should have been removed");
+                }
+
+                @Override
+                public void ended(CancelReason reason) {
+                    ended.incrementAndGet();
+                    throw new IllegalStateException("Application callback failed");
+                }
+            };
+            subscription.registerOnService();
+            upnpService.getRegistry().addLocalSubscription(subscription);
+        }
+
+        assertDoesNotThrow(upnpService::shutdown);
+        assertEquals(2, ended.get());
+        service.getManager().getPropertyChangeSupport().firePropertyChange("Status", false, true);
     }
 
     @Test

@@ -204,18 +204,9 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         }
         if (responseMessage != null && !responseMessage.getOperation().isFailed()) {
 
-            // Prepare the initial event message before we register on the service. Once registered, any change of
-            // the service's state replaces the values the subscription has read for its initial event, and the event
-            // message that is prepared first takes them (and sequence number 0).
-            SendingEvent initialEvent = getUpnpService().getProtocolFactory().createSendingEvent(subscription);
-
-            // This is a minor concurrency issue: If we now register on the service and henceforth send a new
-            // event message whenever the state of the service changes, there is still a chance that the initial
-            // event message arrives later than the first on-change event message. Shouldn't be a problem as the
-            // subscriber is supposed to figure out what to do with out-of-sequence messages. I would be
-            // surprised though if actual implementations won't crash!
-            logger.trace("Establishing subscription");
-            subscription.registerOnService();
+            // Keep sequence zero and its snapshot separate from state changes while the initial event is sent.
+            LocalGENASubscription pending = subscription;
+            pending.registerForInitialEvent();
 
             // The subscription has been in the registry, with its duration running, since the request was
             // processed, and how long the delivery of the response takes is up to the subscriber. If it expired,
@@ -229,10 +220,17 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
                 return;
             }
 
-            subscription.establish();
+            SendingEvent initialEvent = getUpnpService().getProtocolFactory().createSendingEvent(pending);
+            pending.establish();
 
             logger.trace("Response to subscription sent successfully, now sending initial event asynchronously");
-            getUpnpService().getConfiguration().getAsyncProtocolExecutor().execute(initialEvent);
+            getUpnpService().getConfiguration().getAsyncProtocolExecutor().execute(() -> {
+                try {
+                    initialEvent.run();
+                } finally {
+                    pending.finishInitialEvent();
+                }
+            });
 
         } else {
             logger.trace("Subscription request's response aborted, not sending initial event");

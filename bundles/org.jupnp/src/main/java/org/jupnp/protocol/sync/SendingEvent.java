@@ -50,6 +50,7 @@ public class SendingEvent extends SendingSync<OutgoingEventRequestMessage, Strea
 
     private final Logger logger = LoggerFactory.getLogger(SendingEvent.class);
 
+    private final LocalGENASubscription subscription;
     protected final String subscriptionId;
     protected final OutgoingEventRequestMessage[] requestMessages;
     protected final UnsignedIntegerFourBytes currentSequence;
@@ -60,6 +61,7 @@ public class SendingEvent extends SendingSync<OutgoingEventRequestMessage, Strea
         // TODO: Ugly design! It is critical (concurrency) that we prepare the event messages here, in the constructor
         // thread!
 
+        this.subscription = subscription;
         subscriptionId = subscription.getSubscriptionId();
 
         // This is the monitor held by LocalGENASubscription#propertyChange() while it replaces the current values and
@@ -94,6 +96,9 @@ public class SendingEvent extends SendingSync<OutgoingEventRequestMessage, Strea
         StreamResponseMessage lastResponse = null;
 
         for (OutgoingEventRequestMessage requestMessage : requestMessages) {
+            if (getUpnpService().getRegistry().getLocalSubscription(subscriptionId) != subscription) {
+                return lastResponse;
+            }
 
             if (currentSequence.getValue() == 0) {
                 logger.trace("Sending initial event message to callback URL: {}", requestMessage.getUri());
@@ -112,9 +117,7 @@ public class SendingEvent extends SendingSync<OutgoingEventRequestMessage, Strea
                     .getStatusCode() == UpnpResponse.Status.PRECONDITION_FAILED.getStatusCode()) {
                 logger.trace("Subscriber rejected the subscription ID of the event, unregistering subscription: {}",
                         subscriptionId);
-                LocalGENASubscription subscription = getUpnpService().getRegistry()
-                        .getLocalSubscription(subscriptionId);
-                if (subscription != null && getUpnpService().getRegistry().removeLocalSubscription(subscription)) {
+                if (getUpnpService().getRegistry().removeLocalSubscription(subscription)) {
                     subscription.end(null); // No reason, same as an unsubscribe
                 } else {
                     logger.trace("Subscription was already removed from registry");
