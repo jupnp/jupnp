@@ -18,7 +18,7 @@ package org.jupnp.support.renderingcontrol.lastchange;
 import java.util.Map;
 
 import org.jupnp.model.types.Datatype;
-import org.jupnp.model.types.IntegerDatatype;
+import org.jupnp.model.types.InvalidValueException;
 import org.jupnp.support.lastchange.EventedValue;
 import org.jupnp.support.model.Channel;
 import org.jupnp.support.shared.AbstractMap;
@@ -47,7 +47,11 @@ public class EventedValueChannelVolumeDB extends EventedValue<ChannelVolumeDB> {
             }
             if (attribute.getKey().equals("val")) {
                 // VolumeDB is a signed "i2" state variable (1/256 dB), unlike the "ui2" Volume
-                volumeDB = new IntegerDatatype(2).valueOf(attribute.getValue());
+                try {
+                    volumeDB = requireVolumeDB(Integer.parseInt(attribute.getValue().trim()));
+                } catch (NumberFormatException e) {
+                    throw new InvalidValueException("VolumeDB requires an integer", e);
+                }
             }
         }
         return channel != null && volumeDB != null ? new ChannelVolumeDB(channel, volumeDB) : null;
@@ -57,8 +61,16 @@ public class EventedValueChannelVolumeDB extends EventedValue<ChannelVolumeDB> {
     @Override
     public Map.Entry<String, String>[] getAttributes() {
         return new Map.Entry[] {
-                new AbstractMap.SimpleEntry<>("val", new IntegerDatatype(2).getString(getValue().getVolumeDB())),
+                new AbstractMap.SimpleEntry<>("val", Integer.toString(requireVolumeDB(getValue().getVolumeDB()))),
                 new AbstractMap.SimpleEntry<>("channel", getValue().getChannel().name()) };
+    }
+
+    private static int requireVolumeDB(int value) {
+        // RenderingControl:1 reserves 0x8000 even though VolumeDB is carried as a signed i2.
+        if (value < -Short.MAX_VALUE || value > Short.MAX_VALUE) {
+            throw new InvalidValueException("VolumeDB is outside the allowed range: " + value);
+        }
+        return value;
     }
 
     @Override

@@ -67,6 +67,17 @@ class TransportInfoTest {
         assertEquals("OK", created.getCurrentTransportStatusValue());
     }
 
+    @Test
+    void createsTransportInfoDirectlyWithVendorValues() {
+        TransportInfo info = TransportInfo.fromValues("X_BUFFERING", "X_DEVICE_BUSY", "2");
+
+        assertSame(TransportState.CUSTOM, info.getCurrentTransportState());
+        assertSame(TransportStatus.CUSTOM, info.getCurrentTransportStatus());
+        assertEquals("X_BUFFERING", info.getCurrentTransportStateValue());
+        assertEquals("X_DEVICE_BUSY", info.getCurrentTransportStatusValue());
+        assertEquals("2", info.getCurrentSpeed());
+    }
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private TransportInfo response(final String state, final String status) {
         final ActionInvocation invocation = new ActionInvocation(avTransport.getAction("GetTransportInfo"));

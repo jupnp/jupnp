@@ -35,11 +35,24 @@ public class TransportInfo {
     }
 
     public TransportInfo(Map<String, ActionArgumentValue<?>> args) {
-        this.currentTransportStateValue = (String) args.get("CurrentTransportState").getValue();
-        this.currentTransportStatusValue = (String) args.get("CurrentTransportStatus").getValue();
-        this.currentTransportState = TransportState.valueOrCustomOf(currentTransportStateValue);
-        this.currentTransportStatus = TransportStatus.valueOrCustomOf(currentTransportStatusValue);
-        this.currentSpeed = (String) args.get("CurrentSpeed").getValue();
+        this((String) args.get("CurrentTransportState").getValue(),
+                (String) args.get("CurrentTransportStatus").getValue(), (String) args.get("CurrentSpeed").getValue());
+    }
+
+    private TransportInfo(String state, String status, String speed) {
+        this.currentTransportStateValue = state;
+        this.currentTransportStatusValue = status;
+        this.currentTransportState = TransportState.valueOrCustomOf(state);
+        this.currentTransportStatus = TransportStatus.valueOrCustomOf(status);
+        this.currentSpeed = speed;
+    }
+
+    /**
+     * Creates transport information from device values, including vendor-defined state and status strings.
+     * Pass those strings here when migrating from the deprecated enum setters.
+     */
+    public static TransportInfo fromValues(String state, String status, String speed) {
+        return new TransportInfo(state, status, speed);
     }
 
     public TransportInfo(TransportState currentTransportState) {

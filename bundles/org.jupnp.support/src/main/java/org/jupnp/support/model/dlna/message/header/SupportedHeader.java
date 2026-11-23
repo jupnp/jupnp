@@ -15,6 +15,8 @@
  */
 package org.jupnp.support.model.dlna.message.header;
 
+import java.util.Arrays;
+
 import org.jupnp.model.message.header.InvalidHeaderException;
 
 /**
@@ -38,7 +40,11 @@ public class SupportedHeader extends DLNAHeader<String[]> {
             for (int i = 0; i < list.length; i++) {
                 list[i] = list[i].trim();
             }
-            setValue(list);
+            int end = list.length;
+            while (end > 0 && list[end - 1].isEmpty()) {
+                end--;
+            }
+            setValue(end == list.length ? list : Arrays.copyOf(list, end));
             return;
         }
         throw new InvalidHeaderException("Invalid Supported header value: " + s);

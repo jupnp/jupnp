@@ -33,7 +33,8 @@ public enum TransportStatus {
     }
 
     /**
-     * @deprecated Has no effect, a constant is shared by all devices and must not hold the value one of them reported.
+     * @deprecated Has no effect. Use {@link TransportInfo#fromValues(String, String, String)} for vendor-defined
+     *             values.
      */
     @Deprecated
     public TransportStatus setValue(String value) {

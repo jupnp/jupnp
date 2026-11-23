@@ -16,9 +16,15 @@
 package org.jupnp.support.renderingcontrol.lastchange;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.AbstractMap;
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
+import org.jupnp.model.types.InvalidValueException;
 import org.jupnp.support.lastchange.LastChange;
 import org.jupnp.support.model.Channel;
 
@@ -35,9 +41,31 @@ class EventedValueChannelVolumeDBTest {
 
     @Test
     void limitsOfSignedTwoBytesAreWrittenAndRead() throws Exception {
-        assertEquals(Short.MIN_VALUE, writeAndRead(Short.MIN_VALUE).getVolumeDB());
+        assertEquals(-Short.MAX_VALUE, writeAndRead(-Short.MAX_VALUE).getVolumeDB());
         assertEquals(0, writeAndRead(0).getVolumeDB());
         assertEquals(Short.MAX_VALUE, writeAndRead(Short.MAX_VALUE).getVolumeDB());
+    }
+
+    @Test
+    void rejectsReservedVolumeOnReadAndWrite() {
+        assertInstanceOf(InvalidValueException.class,
+                assertThrows(RuntimeException.class, () -> fromAttribute("-32768")).getCause());
+        assertThrows(InvalidValueException.class,
+                () -> new EventedValueChannelVolumeDB(new ChannelVolumeDB(Channel.Master, (int) Short.MIN_VALUE))
+                        .getAttributes());
+    }
+
+    @Test
+    void rejectsNonNumericVolumeWithoutSchemaValidation() {
+        assertInstanceOf(InvalidValueException.class,
+                assertThrows(RuntimeException.class, () -> fromAttribute("NOT_IMPLEMENTED")).getCause());
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static EventedValueChannelVolumeDB fromAttribute(String value) {
+        return new EventedValueChannelVolumeDB(
+                new Map.Entry[] { new AbstractMap.SimpleImmutableEntry<>("channel", "Master"),
+                        new AbstractMap.SimpleImmutableEntry<>("val", value) });
     }
 
     private ChannelVolumeDB writeAndRead(final int volumeDB) throws Exception {

@@ -47,6 +47,7 @@ public class PragmaHeader extends DLNAHeader<List<PragmaType>> {
             for (String pragma : list) {
                 value.add(PragmaType.valueOf(pragma.trim()));
             }
+            setValue(value);
             return;
         }
         throw new InvalidHeaderException("Invalid Pragma header value: " + s);

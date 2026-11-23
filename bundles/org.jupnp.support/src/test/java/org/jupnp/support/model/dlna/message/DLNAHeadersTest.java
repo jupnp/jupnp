@@ -16,6 +16,7 @@
 package org.jupnp.support.model.dlna.message;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
@@ -23,6 +24,7 @@ import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
 import org.jupnp.support.model.dlna.message.header.DLNAHeader;
+import org.jupnp.support.model.dlna.message.header.PragmaHeader;
 import org.jupnp.support.model.dlna.message.header.SupportedHeader;
 
 class DLNAHeadersTest {
@@ -37,6 +39,25 @@ class DLNAHeadersTest {
 
         assertArrayEquals(new String[] { "dlna.announce", "dlna.rtx", "dlna.rtx-dup" },
                 headers.getFirstHeader(DLNAHeader.Type.Supported, SupportedHeader.class).getValue());
+    }
+
+    @Test
+    void parseSupportedIgnoresTrailingEmptyTokens() {
+        SupportedHeader supported = new SupportedHeader();
+        supported.setString("dlna.announce, ");
+
+        assertArrayEquals(new String[] { "dlna.announce" }, supported.getValue());
+        assertEquals("dlna.announce", supported.getString());
+    }
+
+    @Test
+    void parsePragmaStoresTheParsedValue() {
+        PragmaHeader pragma = new PragmaHeader();
+        pragma.setString("getIfoFileURI.dlna.org");
+
+        assertEquals(1, pragma.getValue().size());
+        assertEquals("getIfoFileURI.dlna.org", pragma.getValue().get(0).getString());
+        assertEquals("getIfoFileURI.dlna.org", pragma.getString());
     }
 
     @Test
