@@ -159,6 +159,11 @@
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-dependency-plugin</artifactId>
+          <version>3.11.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-deploy-plugin</artifactId>
           <version>3.2.0</version>
         </plugin>
@@ -240,6 +245,7 @@
               <artifact>itests</artifact>
               <artifact>org.jupnp.common</artifact>
               <artifact>org.jupnp.device.simple</artifact>
+              <artifact>org.jupnp.jpms.tests</artifact>
               <artifact>org.jupnp.osgi.tests.jetty9</artifact>
               <artifact>org.jupnp.osgi.tests.jetty12</artifact>
               <artifact>org.jupnp.osgi.tests.jetty12.jakarta.whiteboard</artifact>

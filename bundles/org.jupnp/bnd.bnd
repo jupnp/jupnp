@@ -1,4 +1,7 @@
--include: ../../bnd.bnd
+-include: ~../../bnd.bnd
+
+# OSGi APIs are only needed when using the Declarative Services components.
+-jpms-module-info-options: ${jpms.module.options},osgi.cmpn;static=true;transitive=false
 
 # Used by HttpExchangeUpnpStream, an alternative to the servlet-based transports built on the JDK's own
 # com.sun.net.httpserver; not every JVM/OSGi framework exports it, so it stays optional. Core no longer
@@ -15,5 +18,5 @@ Import-Package: com.sun.net.httpserver;resolution:=optional,\
 # ServiceLoader.load() call so it can see providers from other bundles. There is no reflective fallback:
 # org.jupnp.OSGiUpnpServiceConfiguration, the shipped OSGi component, does not use this discovery
 # mechanism at all (it consumes TransportConfiguration via a mandatory Declarative Services reference).
-Require-Capability: osgi.serviceloader;filter:="(osgi.serviceloader=org.jupnp.transport.TransportConfiguration)";cardinality:=multiple;resolution:=optional,\
+Require-Capability: osgi.serviceloader;osgi.serviceloader=org.jupnp.transport.TransportConfiguration;filter:="(osgi.serviceloader=org.jupnp.transport.TransportConfiguration)";cardinality:=multiple;resolution:=optional,\
  osgi.extender;filter:="(osgi.extender=osgi.serviceloader.processor)";resolution:=optional

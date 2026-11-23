@@ -18,6 +18,7 @@
   <modules>
     <module>org.jupnp.common</module>
     <module>org.jupnp.device.simple</module>
+    <module>org.jupnp.jpms.tests</module>
     <module>org.jupnp.osgi.tests.jetty9</module>
   </modules>
 
