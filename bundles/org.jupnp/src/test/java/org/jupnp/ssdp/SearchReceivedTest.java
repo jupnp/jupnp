@@ -338,14 +338,26 @@ class SearchReceivedTest {
 
     @Test
     void receivedNonAdvertisedEmbedded() throws Exception {
+        checkNonAdvertisedEmbedded(true);
+    }
+
+    @Test
+    void receivedExplicitlyNonAdvertisedEmbeddedOfAdvertisedRoot() throws Exception {
+        checkNonAdvertisedEmbedded(false);
+    }
+
+    private void checkNonAdvertisedEmbedded(boolean disableRoot) throws Exception {
         MockUpnpService upnpService = new MockUpnpService();
         upnpService.startup();
 
         LocalDevice localDevice = SampleData.createLocalDevice();
         LocalDevice embeddedDevice = localDevice.getEmbeddedDevices()[0];
 
-        // Disable advertising, the options of the root device also apply to its embedded devices
-        upnpService.getRegistry().addDevice(localDevice, new DiscoveryOptions(false));
+        upnpService.getRegistry().addDevice(localDevice, new DiscoveryOptions(!disableRoot));
+        if (!disableRoot) {
+            upnpService.getRegistry().setDiscoveryOptions(embeddedDevice.getIdentity().getUdn(),
+                    new DiscoveryOptions(false));
+        }
 
         UpnpHeader[] searchTargets = { new UDNHeader(embeddedDevice.getIdentity().getUdn()),
                 new DeviceTypeHeader(embeddedDevice.getType()),
@@ -365,8 +377,8 @@ class SearchReceivedTest {
             assertEquals(0, upnpService.getRouter().getOutgoingDatagramMessages().size());
         }
 
-        // Enable advertising
-        upnpService.getRegistry().setDiscoveryOptions(localDevice.getIdentity().getUdn(), new DiscoveryOptions(true));
+        LocalDevice disabled = disableRoot ? localDevice : embeddedDevice;
+        upnpService.getRegistry().setDiscoveryOptions(disabled.getIdentity().getUdn(), new DiscoveryOptions(true));
 
         IncomingSearchRequest searchMsg = createRequestMessage();
         searchMsg.getHeaders().add(UpnpHeader.Type.MAN, new MANHeader(NotificationSubtype.DISCOVER.getHeaderString()));

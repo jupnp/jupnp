@@ -16,8 +16,10 @@
 package org.jupnp.protocol.async;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import org.jupnp.UpnpService;
 import org.jupnp.model.DiscoveryOptions;
@@ -39,6 +41,7 @@ import org.jupnp.model.message.header.ServiceTypeHeader;
 import org.jupnp.model.message.header.UDNHeader;
 import org.jupnp.model.message.header.UpnpHeader;
 import org.jupnp.model.meta.LocalDevice;
+import org.jupnp.model.meta.LocalService;
 import org.jupnp.model.types.DeviceType;
 import org.jupnp.model.types.ServiceType;
 import org.jupnp.model.types.UDN;
@@ -93,8 +96,8 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
             return;
         }
 
-        List<NetworkAddress> activeStreamServers = getUpnpService().getRouter()
-                .getActiveStreamServers(getInputMessage().getLocalAddress());
+        List<NetworkAddress> activeStreamServers = getUpnpService().getRouter().getSearchResponseStreamServers(
+                getInputMessage().getLocalAddress(), getInputMessage().getSourceAddress());
         if (activeStreamServers.isEmpty()) {
             logger.trace("Aborting search response, no active stream servers found (network disabled?)");
             return;
@@ -178,6 +181,9 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
 
             if (localDevice.hasEmbeddedDevices()) {
                 for (LocalDevice embeddedDevice : localDevice.findEmbeddedDevices()) {
+                    if (isAdvertisementDisabled(embeddedDevice)) {
+                        continue;
+                    }
                     if (LOG_ENABLED) {
                         logger.trace("Sending embedded device messages: {}", embeddedDevice);
                     }
@@ -228,7 +234,13 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
     protected List<OutgoingSearchResponse> createServiceTypeMessages(LocalDevice device,
             NetworkAddress activeStreamServer) {
         List<OutgoingSearchResponse> msgs = new ArrayList<>();
-        for (ServiceType serviceType : device.findServiceTypes()) {
+        Set<ServiceType> advertisedTypes = new LinkedHashSet<>();
+        for (LocalService<?> service : device.findServices()) {
+            if (!isAdvertisementDisabled(service.getDevice())) {
+                advertisedTypes.add(service.getServiceType());
+            }
+        }
+        for (ServiceType serviceType : advertisedTypes) {
             OutgoingSearchResponse message = new OutgoingSearchResponseServiceType(getInputMessage(),
                     getDescriptorLocation(activeStreamServer, device), device, serviceType);
             prepareOutgoingSearchResponse(message);
@@ -316,9 +328,15 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
     }
 
     protected boolean isAdvertisementDisabled(LocalDevice device) {
-        // Discovery options are registered for the root device and apply to its embedded devices as well
-        DiscoveryOptions options = getUpnpService().getRegistry()
-                .getDiscoveryOptions(device.getRoot().getIdentity().getUdn());
+        LocalDevice root = device.getRoot();
+        DiscoveryOptions options = getUpnpService().getRegistry().getDiscoveryOptions(root.getIdentity().getUdn());
+        if (options != null && !options.isAdvertised()) {
+            return true;
+        }
+        if (root == device) {
+            return false;
+        }
+        options = getUpnpService().getRegistry().getDiscoveryOptions(device.getIdentity().getUdn());
         return options != null && !options.isAdvertised();
     }
 

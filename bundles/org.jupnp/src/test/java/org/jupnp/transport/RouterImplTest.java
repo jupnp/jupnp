@@ -43,7 +43,9 @@ import org.jupnp.model.message.IncomingDatagramMessage;
 import org.jupnp.model.message.UpnpRequest;
 import org.jupnp.model.message.discovery.OutgoingSearchRequest;
 import org.jupnp.model.message.discovery.OutgoingSearchResponseRootDevice;
+import org.jupnp.model.message.header.LocationHeader;
 import org.jupnp.model.message.header.STAllHeader;
+import org.jupnp.model.message.header.UpnpHeader;
 import org.jupnp.model.meta.LocalDevice;
 import org.jupnp.transport.spi.DatagramIO;
 import org.jupnp.transport.spi.InitializationException;
@@ -148,7 +150,8 @@ class RouterImplTest {
 
             @Override
             public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory) {
-                return proxy(StreamServer.class, (proxy, method, args) -> null);
+                return proxy(StreamServer.class,
+                        (proxy, method, args) -> "getPort".equals(method.getName()) ? 8080 : null);
             }
 
             @Override
@@ -184,10 +187,23 @@ class RouterImplTest {
                 assertEquals(List.of(receivedOnAddress), sentFrom);
             }
 
-            // no datagram I/O is bound to the address the search was received on
+            // The first address on the receiving network can be excluded from binding.
             sentFrom.clear();
-            router.send(createSearchResponse(InetAddress.getByName("10.99.3.1"), localDevice));
-            assertEquals(1, sentFrom.size());
+            InetAddress receivedOn = InetAddress.getByName("10.99.2.10");
+            InetAddress requester = InetAddress.getByName("10.99.2.20");
+            List<NetworkAddress> servers = router.getSearchResponseStreamServers(receivedOn, requester);
+            assertEquals(1, servers.size());
+            assertEquals(bindAddresses.get(2), servers.get(0).getAddress());
+            OutgoingSearchResponseRootDevice reply = new OutgoingSearchResponseRootDevice(
+                    new IncomingDatagramMessage<>(new UpnpRequest(UpnpRequest.Method.MSEARCH), requester, 1900,
+                            receivedOn),
+                    new Location(servers.get(0), "/desc"), localDevice);
+
+            router.send(reply);
+            assertEquals(List.of(bindAddresses.get(2)), sentFrom);
+            assertEquals(bindAddresses.get(2).getHostAddress(), reply.getHeaders()
+                    .getFirstHeader(UpnpHeader.Type.LOCATION, LocationHeader.class).getValue().getHost());
+            assertTrue(router.getSearchResponseStreamServers(InetAddress.getByName("10.99.3.1"), requester).isEmpty());
 
             assertTrue(router.disable());
         } finally {
@@ -237,6 +253,8 @@ class RouterImplTest {
                         return interfaces.iterator();
                     case "getBindAddresses":
                         return bindAddresses.iterator();
+                    case "getAddressNetworkPrefixLength":
+                        return (short) 24;
                     case "hasUsableNetwork":
                         return !bindAddresses.isEmpty();
                     case "getMulticastResponsePort":

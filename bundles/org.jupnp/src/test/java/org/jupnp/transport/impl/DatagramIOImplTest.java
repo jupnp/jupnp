@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -27,6 +28,11 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
+import org.jupnp.data.SampleData;
+import org.jupnp.model.Location;
+import org.jupnp.model.NetworkAddress;
+import org.jupnp.model.message.discovery.OutgoingNotificationRequestRootDevice;
+import org.jupnp.model.types.NotificationSubtype;
 
 class DatagramIOImplTest {
 
@@ -65,6 +71,47 @@ class DatagramIOImplTest {
 
             assertEquals(1, sent.poll(2, TimeUnit.SECONDS));
             assertEquals(2, sent.poll(2, TimeUnit.SECONDS));
+        } finally {
+            release.countDown();
+            io.stop();
+        }
+    }
+
+    @Test
+    void keepsSpaceForDepartureAnnouncementsWhenRegularSendsAreFull() throws Exception {
+        InetAddress loopback = InetAddress.getLoopbackAddress();
+        CountDownLatch firstSend = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch sentByebye = new CountDownLatch(1);
+        DatagramIOImpl io = new DatagramIOImpl(new DatagramIOConfigurationImpl()) {
+            @Override
+            void sendPacket(MulticastSocket socket, DatagramPacket packet) {
+                firstSend.countDown();
+                try {
+                    release.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                if (new String(packet.getData(), packet.getOffset(), packet.getLength(), StandardCharsets.UTF_8)
+                        .contains("ssdp:byebye")) {
+                    sentByebye.countDown();
+                }
+            }
+        };
+        io.init(loopback, 0, null, new DatagramProcessorImpl());
+        try {
+            DatagramPacket ordinary = new DatagramPacket(new byte[] { 1 }, 1, loopback, 1900);
+            io.send(ordinary);
+            assertTrue(firstSend.await(2, TimeUnit.SECONDS));
+            for (int i = 0; i < 300; i++) {
+                io.send(ordinary);
+            }
+            io.send(new OutgoingNotificationRequestRootDevice(new Location(new NetworkAddress(loopback, 8080), "/desc"),
+                    SampleData.createLocalDevice(), NotificationSubtype.BYEBYE));
+
+            release.countDown();
+            assertTrue(sentByebye.await(2, TimeUnit.SECONDS));
         } finally {
             release.countDown();
             io.stop();

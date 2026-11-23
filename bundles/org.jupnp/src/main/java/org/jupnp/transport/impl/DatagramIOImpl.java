@@ -28,6 +28,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.jupnp.model.UnsupportedDataException;
 import org.jupnp.model.message.OutgoingDatagramMessage;
+import org.jupnp.model.message.discovery.OutgoingNotificationRequest;
+import org.jupnp.model.types.NotificationSubtype;
 import org.jupnp.transport.Router;
 import org.jupnp.transport.spi.DatagramIO;
 import org.jupnp.transport.spi.DatagramProcessor;
@@ -53,6 +55,7 @@ import org.slf4j.LoggerFactory;
 public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
 
     private static final int SEND_QUEUE_SIZE = 256;
+    static final int RESERVED_BYEBYE_SLOTS = 16;
     private static final long SEND_DRAIN_MILLIS = 250;
 
     private final Logger logger = LoggerFactory.getLogger(DatagramIOImpl.class);
@@ -184,12 +187,22 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
         logger.debug("Sending UDP datagram packet to: {}:{}", message.getDestinationAddress(),
                 message.getDestinationPort());
 
-        send(packet);
+        boolean byebye = message instanceof OutgoingNotificationRequest
+                && ((OutgoingNotificationRequest) message).getType() == NotificationSubtype.BYEBYE;
+        enqueue(packet, byebye);
     }
 
     @Override
     public synchronized void send(DatagramPacket datagram) {
+        enqueue(datagram, false);
+    }
+
+    private void enqueue(DatagramPacket datagram, boolean byebye) {
         if (sender == null || sender.isShutdown() || socket == null || socket.isClosed()) {
+            return;
+        }
+        if (!byebye && sender.getQueue().remainingCapacity() <= RESERVED_BYEBYE_SLOTS) {
+            logger.debug("Datagram send queue is full for regular traffic on {}", localAddress);
             return;
         }
         // Some callers reuse the packet as soon as send() returns.
