@@ -122,6 +122,12 @@ public class Jetty9StreamClientImpl extends AbstractStreamClient<Jetty9StreamCli
             default:
         }
 
+        // GENA events must only be delivered to the callback URL that was validated when the
+        // subscription was accepted (see ReceivingSubscribe), a redirect must not move them elsewhere
+        if (upnpRequest.getMethod() == UpnpRequest.Method.NOTIFY) {
+            request.followRedirects(false);
+        }
+
         // prepare default headers
         request.getHeaders().add(defaultHttpFields);
 
