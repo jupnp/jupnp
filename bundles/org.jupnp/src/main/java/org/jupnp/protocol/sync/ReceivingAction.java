@@ -126,12 +126,16 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
             responseMessage = new OutgoingActionResponseMessage(UpnpResponse.Status.INTERNAL_SERVER_ERROR);
 
         } catch (UnsupportedDataException e) {
-            logger.warn("Error reading action request XML body", e);
+            Throwable cause = Exceptions.unwrap(e);
+            if (cause instanceof ActionException
+                    && ((ActionException) cause).getErrorCode() == ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE.getCode()) {
+                logger.debug("Rejected action argument: {}", cause.getMessage());
+            } else {
+                logger.warn("Error reading action request XML body", e);
+            }
 
-            invocation = new RemoteActionInvocation(
-                    Exceptions.unwrap(e) instanceof ActionException ? (ActionException) Exceptions.unwrap(e)
-                            : new ActionException(ErrorCode.ACTION_FAILED, e.getMessage()),
-                    getRemoteClientInfo());
+            invocation = new RemoteActionInvocation(cause instanceof ActionException ? (ActionException) cause
+                    : new ActionException(ErrorCode.ACTION_FAILED, e.getMessage()), getRemoteClientInfo());
             responseMessage = new OutgoingActionResponseMessage(UpnpResponse.Status.INTERNAL_SERVER_ERROR);
 
         }

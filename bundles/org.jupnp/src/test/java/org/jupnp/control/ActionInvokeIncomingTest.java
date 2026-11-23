@@ -44,10 +44,18 @@ import org.jupnp.model.meta.LocalDevice;
 import org.jupnp.model.meta.LocalService;
 import org.jupnp.model.meta.QueryStateVariableAction;
 import org.jupnp.model.meta.Service;
+import org.jupnp.model.meta.StateVariableTypeDetails;
+import org.jupnp.model.types.Datatype;
 import org.jupnp.model.types.ErrorCode;
 import org.jupnp.model.types.SoapActionType;
 import org.jupnp.protocol.sync.ReceivingAction;
 import org.jupnp.util.MimeType;
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 /**
  * @author Christian Bauer
@@ -269,7 +277,36 @@ class ActionInvokeIncomingTest {
         assertNotNull(ex);
         assertEquals(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE.getCode(), ex.getErrorCode());
 
+        ex = incomingRemoteCallRestricted("SetMode", "NewMode", "", "Normal");
+        assertNotNull(ex);
+        assertEquals(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE.getCode(), ex.getErrorCode());
+
         assertNull(incomingRemoteCallRestricted("SetMode", "NewMode", "Inverted", "Inverted"));
+    }
+
+    @Test
+    void keepsEmptyStringAllowedWhenListed() {
+        StateVariableTypeDetails details = new StateVariableTypeDetails(Datatype.Builtin.STRING.getDatatype(), null,
+                new String[] { "", "Normal" }, null);
+
+        assertTrue(details.isAllowedValue(null));
+        assertFalse(details.isAllowedValue("Other"));
+    }
+
+    @Test
+    void doesNotLogArgumentRejectionAsAnXmlParsingWarning() throws Exception {
+        Logger logger = (Logger) LoggerFactory.getLogger(ReceivingAction.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            ActionException failure = incomingRemoteCallRestricted("SetMode", "NewMode", "", "Normal");
+            assertEquals(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE.getCode(), failure.getErrorCode());
+            assertTrue(appender.list.stream().noneMatch(event -> event.getLevel().isGreaterOrEqual(Level.WARN)));
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     /**

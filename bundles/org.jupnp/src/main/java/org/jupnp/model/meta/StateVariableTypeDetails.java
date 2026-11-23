@@ -79,19 +79,17 @@ public class StateVariableTypeDetails implements Validatable {
     /**
      * Checks a value against the allowed value list or the allowed value range, if any.
      * <p>
-     * The step of an allowed value range is a hint for control points and is not enforced here.
+     * For a range, this check enforces the minimum and maximum. It does not check alignment to the step.
      * </p>
      *
      * @param value The value to check, as converted by the {@link Datatype} of this state variable.
      * @return <code>true</code> if the value is allowed or if there is no restriction to check.
      */
     public boolean isAllowedValue(Object value) {
-        if (value == null) {
-            return true;
-        }
-
-        if (getAllowedValues() != null) {
-            return Arrays.asList(getAllowedValues()).contains(value.toString());
+        String[] allowed = getAllowedValues();
+        if (allowed != null) {
+            // StringDatatype represents an empty string as null.
+            return Arrays.asList(allowed).contains(value == null ? "" : value.toString());
         }
 
         if (getAllowedValueRange() != null) {
