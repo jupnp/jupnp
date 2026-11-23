@@ -16,7 +16,7 @@
 package org.jupnp.model.message;
 
 import java.io.ByteArrayInputStream;
-import java.util.LinkedHashMap;
+import java.util.EnumMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +35,8 @@ import org.slf4j.LoggerFactory;
 public class UpnpHeaders extends Headers {
 
     private final Logger logger = LoggerFactory.getLogger(UpnpHeaders.class);
+
+    private static final UpnpHeader[] EMPTY_HEADERS = new UpnpHeader[0];
 
     protected Map<UpnpHeader.Type, List<UpnpHeader>> parsedHeaders;
 
@@ -55,7 +57,7 @@ public class UpnpHeaders extends Headers {
 
     protected void parseHeaders() {
         // This runs as late as possible and only when necessary (getter called and map is dirty)
-        parsedHeaders = new LinkedHashMap<>();
+        parsedHeaders = new EnumMap<>(UpnpHeader.Type.class);
         logger.trace("Parsing all HTTP headers for known UPnP headers: {}", size());
         for (Entry<String, List<String>> entry : entrySet()) {
 
@@ -144,17 +146,26 @@ public class UpnpHeaders extends Headers {
         if (parsedHeaders == null) {
             parseHeaders();
         }
-        return parsedHeaders.get(type) != null
-                ? parsedHeaders.get(type).toArray(new UpnpHeader[parsedHeaders.get(type).size()])
-                : new UpnpHeader[0];
+        List<UpnpHeader> headers = parsedHeaders.get(type);
+        if (headers == null || headers.isEmpty())
+            return EMPTY_HEADERS;
+
+        // use EMPTY_HEADERS to trigger a new array is created
+        return headers.toArray(EMPTY_HEADERS);
     }
 
     public UpnpHeader getFirstHeader(UpnpHeader.Type type) {
-        return getAsArray(type).length > 0 ? getAsArray(type)[0] : null;
+        List<UpnpHeader> headers = get(type);
+        if (headers == null || headers.isEmpty())
+            return null;
+
+        return headers.get(0);
     }
 
     public <H extends UpnpHeader> H getFirstHeader(UpnpHeader.Type type, Class<H> subtype) {
-        UpnpHeader[] headers = getAsArray(type);
+        List<UpnpHeader> headers = get(type);
+        if (headers == null || headers.isEmpty())
+            return null;
 
         for (UpnpHeader header : headers) {
             if (subtype.isAssignableFrom(header.getClass())) {
