@@ -28,6 +28,7 @@ import org.jupnp.model.action.ActionInvocation;
 import org.jupnp.model.meta.Action;
 import org.jupnp.model.meta.ActionArgument;
 import org.jupnp.model.meta.StateVariable;
+import org.jupnp.model.types.Datatype.Builtin;
 import org.jupnp.osgi.util.OSGiContext;
 import org.jupnp.osgi.util.OSGiDataConverter;
 import org.osgi.service.upnp.UPnPAction;
@@ -140,22 +141,15 @@ public class UPnPActionImpl implements UPnPAction {
                     String name = argument.getArgument().getName();
                     Object value = argument.getValue();
 
-                    if (value == null) {
-                        logger.error("Received null value for variable {} to OSGi type {}.", name,
-                                argument.getDatatype().getDisplayString());
-                        // throw an exception
-                    } else {
-                        // System.out.printf("name: %s value: %s (%s)\n", name, value, value.getClass().getName());
-
+                    Builtin type = argument.getDatatype().getBuiltin();
+                    if (value != null || type == Builtin.BIN_BASE64 || type == Builtin.BIN_HEX) {
                         value = OSGiDataConverter.toOSGiValue(argument.getDatatype(), value);
-
-                        if (value == null) {
-                            logger.error("Cannot convert variable {} to OSGi type {}.", name,
-                                    argument.getDatatype().getDisplayString());
-                            // throw an exception
-                        } else {
-                            output.put(name, value);
-                        }
+                    }
+                    if (value == null) {
+                        logger.debug("No OSGi output value for {} of type {}", name,
+                                argument.getDatatype().getDisplayString());
+                    } else {
+                        output.put(name, value);
                     }
                 }
             }
