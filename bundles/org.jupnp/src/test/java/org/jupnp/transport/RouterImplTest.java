@@ -25,10 +25,13 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.BindException;
+import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.InterfaceAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,6 +50,7 @@ import org.jupnp.model.message.header.LocationHeader;
 import org.jupnp.model.message.header.STAllHeader;
 import org.jupnp.model.message.header.UpnpHeader;
 import org.jupnp.model.meta.LocalDevice;
+import org.jupnp.transport.impl.NetworkAddressFactoryImpl;
 import org.jupnp.transport.spi.DatagramIO;
 import org.jupnp.transport.spi.InitializationException;
 import org.jupnp.transport.spi.MulticastReceiver;
@@ -209,6 +213,47 @@ class RouterImplTest {
         } finally {
             configuration.shutdown();
         }
+    }
+
+    @Test
+    void multicastReceptionKeepsItsInterfaceWhenOnlyAnotherInterfaceMatchesTheSubnet() throws Exception {
+        InetAddress otherAddress = InetAddress.getByName("127.0.0.1");
+        NetworkInterface otherInterface = NetworkInterface.getByInetAddress(otherAddress);
+        assumeTrue(otherInterface != null, "IPv4 loopback interface required for this test");
+
+        NetworkInterface receivingInterface = Collections.list(NetworkInterface.getNetworkInterfaces()).stream()
+                .filter(iface -> !iface.equals(otherInterface)).findFirst().orElse(null);
+        assumeTrue(receivingInterface != null, "a second network interface is required for this test");
+
+        // Use the real loopback subnet as the other interface's subnet. Give the receiving interface a
+        // controlled address so the test does not depend on its actual IPv4 configuration.
+        Inet4Address receivedOn = (Inet4Address) InetAddress.getByName("192.0.2.10");
+        NetworkAddressFactoryImpl factory = new NetworkAddressFactoryImpl() {
+            @Override
+            protected void discoverNetworkInterfaces() {
+                networkInterfaces.add(otherInterface);
+                networkInterfaces.add(receivingInterface);
+            }
+
+            @Override
+            protected void discoverBindAddresses() {
+                bindAddresses.add(otherAddress);
+                bindAddresses.add(receivedOn);
+            }
+
+            @Override
+            protected List<InterfaceAddress> getInterfaceAddresses(NetworkInterface iface) {
+                return iface.equals(receivingInterface) ? List.of() : super.getInterfaceAddresses(iface);
+            }
+
+            @Override
+            protected List<InetAddress> getInetAddresses(NetworkInterface iface) {
+                return iface.equals(receivingInterface) ? List.of(receivedOn) : super.getInetAddresses(iface);
+            }
+        };
+        InetAddress requester = InetAddress.getByName("127.0.0.2");
+        assertEquals(otherAddress, factory.getLocalAddress(otherInterface, false, requester));
+        assertEquals(receivedOn, factory.getLocalAddress(receivingInterface, false, requester));
     }
 
     private static OutgoingSearchResponseRootDevice createSearchResponse(InetAddress receivedOnAddress,

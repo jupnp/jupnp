@@ -99,6 +99,7 @@ public interface NetworkAddressFactory {
      * able to communicate with the sender using UDP unicast and we need to tell the sender
      * how we are reachable with TCP requests. We need a local address that is in the same
      * subnet as the senders address, that is reachable from the senders point of view.
+     * The returned address must belong to the interface that received the datagram.
      *
      * @param networkInterface The network interface to examine.
      * @param isIPv6 True if the given remote address is an IPv6 address.

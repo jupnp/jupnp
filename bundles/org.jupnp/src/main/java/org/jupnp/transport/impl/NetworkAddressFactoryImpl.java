@@ -238,31 +238,31 @@ public class NetworkAddressFactoryImpl implements NetworkAddressFactory {
     @Override
     public InetAddress getLocalAddress(NetworkInterface networkInterface, boolean isIPv6, InetAddress remoteAddress) {
 
-        // First try to find a local IP that is in the same subnet as the remote IP
-        InetAddress localIPInSubnet = getBindAddressInSubnetOf(remoteAddress);
+        // A multicast copy belongs to the interface that received it, even if the sender's address
+        // is in a subnet served by a different interface.
+        InetAddress localIPInSubnet = getBindAddressInSubnetOf(networkInterface, remoteAddress);
         if (localIPInSubnet != null) {
             return localIPInSubnet;
         }
 
-        // There are two reasons why we end up here:
-        //
-        // - Windows Vista returns a 64 or 128 CIDR prefix if you ask it for the network prefix length of an IPv4
-        // address!
-        //
-        // - We are dealing with genuine IPv6 addresses
-        //
-        // - Something is really wrong on the LAN and we received a multicast datagram from a source we can't reach via
-        // IP
-        logger.trace("Could not find local bind address in same subnet as: {}", remoteAddress.getHostAddress());
+        logger.trace("Could not find local bind address on {} in same subnet as: {}", networkInterface.getDisplayName(),
+                remoteAddress.getHostAddress());
 
-        // Next, just take the given interface (which is really totally random) and get the first address that we like
-        for (InetAddress interfaceAddress : getInetAddresses(networkInterface)) {
-            if (isIPv6 && interfaceAddress instanceof Inet6Address) {
-                return interfaceAddress;
+        InetAddress fallback = null;
+        synchronized (bindAddresses) {
+            for (InetAddress address : getInetAddresses(networkInterface)) {
+                if (isIPv6 ? address instanceof Inet6Address : address instanceof Inet4Address) {
+                    if (bindAddresses.contains(address)) {
+                        return address;
+                    }
+                    if (fallback == null) {
+                        fallback = address;
+                    }
+                }
             }
-            if (!isIPv6 && interfaceAddress instanceof Inet4Address) {
-                return interfaceAddress;
-            }
+        }
+        if (fallback != null) {
+            return fallback;
         }
         throw new IllegalStateException(
                 "Can't find any IPv4 or IPv6 address on interface: " + networkInterface.getDisplayName());
@@ -279,20 +279,25 @@ public class NetworkAddressFactoryImpl implements NetworkAddressFactory {
     protected InetAddress getBindAddressInSubnetOf(InetAddress inetAddress) {
         synchronized (networkInterfaces) {
             for (NetworkInterface iface : networkInterfaces) {
-                for (InterfaceAddress ifaceAddress : getInterfaceAddresses(iface)) {
-
-                    synchronized (bindAddresses) {
-                        if (ifaceAddress == null || !bindAddresses.contains(ifaceAddress.getAddress())) {
-                            continue;
-                        }
-                    }
-
-                    if (isInSubnet(inetAddress.getAddress(), ifaceAddress.getAddress().getAddress(),
-                            ifaceAddress.getNetworkPrefixLength())) {
-                        return ifaceAddress.getAddress();
-                    }
+                InetAddress bindAddress = getBindAddressInSubnetOf(iface, inetAddress);
+                if (bindAddress != null) {
+                    return bindAddress;
                 }
+            }
+        }
+        return null;
+    }
 
+    private InetAddress getBindAddressInSubnetOf(NetworkInterface iface, InetAddress address) {
+        synchronized (bindAddresses) {
+            for (InterfaceAddress ifaceAddress : getInterfaceAddresses(iface)) {
+                if (ifaceAddress == null || !bindAddresses.contains(ifaceAddress.getAddress())) {
+                    continue;
+                }
+                if (isInSubnet(address.getAddress(), ifaceAddress.getAddress().getAddress(),
+                        ifaceAddress.getNetworkPrefixLength())) {
+                    return ifaceAddress.getAddress();
+                }
             }
         }
         return null;
@@ -303,7 +308,7 @@ public class NetworkAddressFactoryImpl implements NetworkAddressFactory {
             return false;
         }
 
-        if (prefix / 8 > ip.length) {
+        if (prefix < 0 || prefix > ip.length * Byte.SIZE) {
             return false;
         }
 

@@ -21,7 +21,6 @@ import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -337,8 +336,13 @@ public class RouterImpl implements Router {
         }
         int wholeBytes = prefix / Byte.SIZE;
         int remainingBits = prefix % Byte.SIZE;
-        return Arrays.equals(first, 0, wholeBytes, second, 0, wholeBytes) && (remainingBits == 0
-                || (((first[wholeBytes] ^ second[wholeBytes]) & 0xFF) >>> (Byte.SIZE - remainingBits)) == 0);
+        for (int i = 0; i < wholeBytes; i++) {
+            if (first[i] != second[i]) {
+                return false;
+            }
+        }
+        return remainingBits == 0
+                || (((first[wholeBytes] ^ second[wholeBytes]) & 0xFF) >>> (Byte.SIZE - remainingBits)) == 0;
     }
 
     /**
