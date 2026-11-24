@@ -17,12 +17,14 @@ package org.jupnp.osgi.util;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.Test;
 import org.jupnp.model.VariableValue;
 import org.jupnp.model.types.Datatype;
+import org.jupnp.model.types.InvalidValueException;
 
 /**
  * Tests for {@link OSGiDataConverter}.
@@ -40,6 +42,24 @@ class OSGiBinaryConversionTest {
         assertArrayEquals(HELLO, (byte[]) OSGiDataConverter.toOSGiValue(hex, hex.valueOf("68656C6C6F")));
         assertArrayEquals(new byte[0], (byte[]) OSGiDataConverter.toOSGiValue(base64, base64.valueOf("")));
         assertArrayEquals(new byte[0], (byte[]) OSGiDataConverter.toOSGiValue(hex, hex.valueOf("")));
+    }
+
+    @Test
+    void changingBinaryEventValueDoesNotChangeTheCachedValue() {
+        Datatype<?> hex = Datatype.Builtin.BIN_HEX.getDatatype();
+        byte[] decoded = (byte[]) hex.valueOf("0123");
+        byte[] listenerValue = (byte[]) OSGiDataConverter.toOSGiValue(hex, decoded);
+        listenerValue[0] = 0x02;
+
+        assertArrayEquals(new byte[] { 0x01, 0x23 }, (byte[]) OSGiDataConverter.toOSGiValue(hex, decoded));
+    }
+
+    @Test
+    void malformedHexIsRejectedInsteadOfBecomingAnEmptyValue() {
+        Datatype<?> hex = Datatype.Builtin.BIN_HEX.getDatatype();
+
+        assertThrows(InvalidValueException.class, () -> hex.valueOf("GG"));
+        assertThrows(InvalidValueException.class, () -> hex.valueOf("1"));
     }
 
     @Test

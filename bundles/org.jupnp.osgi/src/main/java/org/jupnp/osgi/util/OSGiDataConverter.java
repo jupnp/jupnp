@@ -253,7 +253,7 @@ public class OSGiDataConverter {
         if (input == null) {
             output = new byte[0];
         } else if (input instanceof byte[]) {
-            output = (byte[]) input;
+            output = ((byte[]) input).clone();
         }
 
         return output;
