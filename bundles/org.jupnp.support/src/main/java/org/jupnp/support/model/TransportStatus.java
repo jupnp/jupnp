@@ -24,18 +24,20 @@ public enum TransportStatus {
     ERROR_OCCURRED,
     CUSTOM;
 
-    String value;
-
-    TransportStatus() {
-        this.value = name();
-    }
-
+    /**
+     * @return The name of this constant. A constant is shared by all devices and doesn't hold the vendor-defined value
+     *         a device reported for {@link #CUSTOM}, see {@link TransportInfo#getCurrentTransportStatusValue()}.
+     */
     public String getValue() {
-        return value;
+        return name();
     }
 
+    /**
+     * @deprecated Has no effect. Use {@link TransportInfo#fromValues(String, String, String)} for vendor-defined
+     *             values.
+     */
+    @Deprecated
     public TransportStatus setValue(String value) {
-        this.value = value;
         return this;
     }
 
@@ -43,7 +45,7 @@ public enum TransportStatus {
         try {
             return TransportStatus.valueOf(s);
         } catch (IllegalArgumentException e) {
-            return TransportStatus.CUSTOM.setValue(s);
+            return TransportStatus.CUSTOM;
         }
     }
 }
