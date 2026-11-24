@@ -87,6 +87,9 @@ public abstract class RemoteGENASubscription extends GENASubscription<RemoteServ
     }
 
     public synchronized void receive(UnsignedIntegerFourBytes sequence, Collection<StateVariableValue> newValues) {
+        if (terminated) {
+            return;
+        }
 
         if (this.currentSequence != null) {
 

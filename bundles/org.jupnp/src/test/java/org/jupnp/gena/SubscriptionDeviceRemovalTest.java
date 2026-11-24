@@ -32,6 +32,7 @@ import org.jupnp.model.meta.LocalDevice;
 import org.jupnp.model.meta.LocalService;
 import org.jupnp.model.meta.RemoteDevice;
 import org.jupnp.model.meta.RemoteService;
+import org.jupnp.model.types.UnsignedIntegerFourBytes;
 
 /**
  * Removing a device from the registry must end the subscriptions to all services of its device graph, not only those
@@ -71,6 +72,7 @@ class SubscriptionDeviceRemovalTest {
         upnpService.getRegistry().addDevice(rd);
 
         final List<CancelReason> ended = new ArrayList<>();
+        final List<Long> sequences = new ArrayList<>();
         RemoteGENASubscription subscription = new RemoteGENASubscription(service, 1800) {
             @Override
             public void ended(CancelReason reason, UpnpResponse responseStatus) {
@@ -87,6 +89,7 @@ class SubscriptionDeviceRemovalTest {
 
             @Override
             public void eventReceived() {
+                sequences.add(getCurrentSequence().getValue());
             }
 
             @Override
@@ -99,8 +102,12 @@ class SubscriptionDeviceRemovalTest {
         };
         subscription.setSubscriptionId(SUBSCRIPTION_ID);
         upnpService.getRegistry().addRemoteSubscription(subscription);
+        subscription.receive(new UnsignedIntegerFourBytes(0), List.of());
 
         assertTrue(upnpService.getRegistry().removeDevice(rd));
+        // ReceivingEvent can already have captured the subscription when the device is removed.
+        subscription.receive(new UnsignedIntegerFourBytes(1), List.of());
+        assertEquals(List.of(0L), sequences);
 
         assertNull(upnpService.getRegistry().getRemoteSubscription(SUBSCRIPTION_ID));
         assertEquals(List.of(CancelReason.DEVICE_WAS_REMOVED), ended);
@@ -117,6 +124,7 @@ class SubscriptionDeviceRemovalTest {
         LocalGENASubscription subscription = new LocalGENASubscription(service, new ArrayList<>()) {
             @Override
             public void ended(CancelReason reason) {
+                assertFalse(Thread.holdsLock(this));
                 ended.add(reason);
             }
 
@@ -134,6 +142,7 @@ class SubscriptionDeviceRemovalTest {
         assertTrue(upnpService.getRegistry().removeDevice(ld));
 
         assertNull(upnpService.getRegistry().getLocalSubscription(SUBSCRIPTION_ID));
+        subscription.end(null);
         assertEquals(List.of(CancelReason.DEVICE_WAS_REMOVED), ended);
 
         upnpService.shutdown();
