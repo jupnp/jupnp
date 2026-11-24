@@ -205,7 +205,7 @@ public class XMLUtil {
         NodeList childList = node.getChildNodes();
         for (int i = 0; i < childList.getLength(); i++) {
             Node child = childList.item(i);
-            if (child.getNodeType() != Node.TEXT_NODE) {
+            if (child.getNodeType() != Node.TEXT_NODE && child.getNodeType() != Node.CDATA_SECTION_NODE) {
                 continue; // skip non-text nodes
             }
             buffer.append(child.getNodeValue());

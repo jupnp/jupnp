@@ -102,6 +102,17 @@ class ActionValidationTest {
         assertEquals(1, device.getServices()[0].getActions().length);
     }
 
+    @Test
+    void reportsInputReturnValuesOncePerAction() throws Exception {
+        RemoteDevice device = createRemoteDevice(
+                new ActionArgument<>("First", "Foo", ActionArgument.Direction.IN, true),
+                new ActionArgument<>("Second", "Foo", ActionArgument.Direction.IN, true));
+
+        assertEquals(List
+                .of("UPnP specification violation of device '" + device + "': Input argument can not have <retval/>"),
+                reports());
+    }
+
     @SafeVarargs
     private static RemoteDevice createRemoteDevice(ActionArgument<RemoteService>... arguments) throws Exception {
         RemoteService service = new RemoteService(new UDAServiceType("Foo", 1), new UDAServiceId("Foo"),

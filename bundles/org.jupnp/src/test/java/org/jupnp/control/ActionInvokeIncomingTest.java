@@ -280,8 +280,13 @@ class ActionInvokeIncomingTest {
         ex = incomingRemoteCallRestricted("SetMode", "NewMode", "", "Normal");
         assertNotNull(ex);
         assertEquals(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE.getCode(), ex.getErrorCode());
+    }
 
+    @Test
+    void incomingRemoteCallAcceptsTextAndCdataForAllowedValue() throws Exception {
         assertNull(incomingRemoteCallRestricted("SetMode", "NewMode", "Inverted", "Inverted"));
+        assertNull(incomingRemoteCallRestricted("SetMode", "NewMode", "<![CDATA[Inverted]]>", "Inverted"));
+        assertNull(incomingRemoteCallRestricted("SetMode", "NewMode", "In<![CDATA[vert]]>ed", "Inverted"));
     }
 
     @Test
