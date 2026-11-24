@@ -153,6 +153,7 @@ class IncomingSubscriptionShutdownTest {
 
             @Override
             public void ended(GENASubscription subscription, CancelReason reason, UpnpResponse responseStatus) {
+                assertFalse(Thread.holdsLock(subscription));
                 endedReasons.add(reason);
             }
 

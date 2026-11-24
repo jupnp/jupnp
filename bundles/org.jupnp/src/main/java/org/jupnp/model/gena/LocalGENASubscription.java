@@ -16,18 +16,22 @@
 package org.jupnp.model.gena;
 
 import java.net.URL;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import org.jupnp.internal.compat.java.beans.PropertyChangeEvent;
 import org.jupnp.internal.compat.java.beans.PropertyChangeListener;
+import org.jupnp.internal.compat.java.beans.PropertyChangeSupport;
 import org.jupnp.model.ServiceManager;
 import org.jupnp.model.UserConstants;
 import org.jupnp.model.message.header.SubscriptionIdHeader;
@@ -60,12 +64,14 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
 
     final List<URL> callbackURLs;
 
-    private Map<String, StateVariableValue> initialEventChanges;
+    private PropertyChangeSupport listenerSupport;
     private boolean terminated;
 
     // Moderation history
     final Map<String, Long> lastSentTimestamp = new HashMap<>();
     final Map<String, Long> lastSentNumericValue = new HashMap<>();
+
+    private Deque<Collection<StateVariableValue>> initialEventChanges;
 
     protected LocalGENASubscription(LocalService service, List<URL> callbackURLs) throws Exception {
         super(service);
@@ -110,28 +116,12 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
     /**
      * Adds a property change listener on the {@link org.jupnp.model.ServiceManager}.
      */
-    public synchronized void registerOnService() {
-        if (!terminated) {
-            getService().getManager().getPropertyChangeSupport().addPropertyChangeListener(this);
-        }
-    }
-
-    /**
-     * Listen for changes while retaining the original values until the initial notification is sent.
-     */
-    public synchronized void registerForInitialEvent() {
-        if (!terminated) {
-            initialEventChanges = new LinkedHashMap<>();
-            registerOnService();
-        }
-    }
-
-    public synchronized void finishInitialEvent() {
-        if (initialEventChanges != null) {
-            Collection<StateVariableValue> changes = initialEventChanges.values();
-            initialEventChanges = null;
-            if (!changes.isEmpty()) {
-                publishChanges(changes);
+    public void registerOnService() {
+        PropertyChangeSupport support = getService().getManager().getPropertyChangeSupport();
+        synchronized (this) {
+            if (!terminated && listenerSupport == null) {
+                support.addPropertyChangeListener(this);
+                listenerSupport = support;
             }
         }
     }
@@ -145,16 +135,21 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
     /**
      * Removes a property change listener on the {@link org.jupnp.model.ServiceManager}.
      */
-    public synchronized void end(CancelReason reason) {
-        if (terminated) {
-            return;
-        }
-        terminated = true;
-        initialEventChanges = null;
-        try {
-            getService().getManager().getPropertyChangeSupport().removePropertyChangeListener(this);
-        } catch (Exception e) {
-            logger.warn("Removal of local service property change listener failed", e);
+    public void end(CancelReason reason) {
+        synchronized (this) {
+            if (terminated) {
+                return;
+            }
+            terminated = true;
+            if (listenerSupport != null) {
+                try {
+                    listenerSupport.removePropertyChangeListener(this);
+                } catch (Exception e) {
+                    logger.warn("Removal of local service property change listener failed", e);
+                } finally {
+                    listenerSupport = null;
+                }
+            }
         }
         ended(reason);
     }
@@ -173,15 +168,13 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
 
         Collection<StateVariableValue> newValues = (Collection) e.getNewValue();
         if (initialEventChanges != null) {
-            for (StateVariableValue value : newValues) {
-                initialEventChanges.put(value.getStateVariable().getName(), value);
-            }
-            return;
+            initialEventChanges.addLast(new ArrayList<>(newValues));
+        } else if (updateCurrentValues(newValues)) {
+            eventReceived();
         }
-        publishChanges(newValues);
     }
 
-    private void publishChanges(Collection<StateVariableValue> newValues) {
+    private boolean updateCurrentValues(Collection<StateVariableValue> newValues) {
         long currentTime = new Date().getTime();
         Set<String> excludedVariables = moderateStateVariables(currentTime, newValues);
 
@@ -201,15 +194,12 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
             }
         }
 
-        if (!currentValues.isEmpty()) {
-            logger.trace("Propagating new state variable values to subscription: {}", this);
-            // TODO: I'm not happy with this design, this dispatches to a separate thread which _then_
-            // is supposed to lock and read the values off this instance. That obviously doesn't work
-            // so it's currently a hack in SendingEvent.java
-            eventReceived();
-        } else {
+        if (currentValues.isEmpty()) {
             logger.trace("No state variable values for event (all moderated out?), not triggering event");
+            return false;
         }
+        logger.trace("Propagating new state variable values to subscription: {}", this);
+        return true;
     }
 
     /**
@@ -272,6 +262,48 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
 
         }
         return excludedVariables;
+    }
+
+    /**
+     * Listen for changes while retaining the original values until the initial notification is sent.
+     */
+    public void registerForInitialEvent() {
+        synchronized (this) {
+            if (terminated) {
+                return;
+            }
+            initialEventChanges = new ArrayDeque<>();
+        }
+        registerOnService();
+    }
+
+    /**
+     * Drain the batches queued behind the initial event on the same sender. Prepare each notification
+     * under the subscription monitor and release it before sending.
+     */
+    public void finishInitialEvent(Supplier<? extends Runnable> prepareEvent) {
+        try {
+            Runnable event;
+            while ((event = prepareNextInitialEventChange(prepareEvent)) != null) {
+                event.run();
+            }
+        } finally {
+            synchronized (this) {
+                initialEventChanges = null;
+            }
+        }
+    }
+
+    private synchronized Runnable prepareNextInitialEventChange(Supplier<? extends Runnable> prepareEvent) {
+        if (initialEventChanges != null) {
+            while (!terminated && !initialEventChanges.isEmpty()) {
+                if (updateCurrentValues(initialEventChanges.removeFirst())) {
+                    return prepareEvent.get();
+                }
+            }
+            initialEventChanges = null;
+        }
+        return null;
     }
 
     public synchronized void incrementSequence() {

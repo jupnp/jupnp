@@ -228,7 +228,7 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
                 try {
                     initialEvent.run();
                 } finally {
-                    pending.finishInitialEvent();
+                    pending.finishInitialEvent(() -> getUpnpService().getProtocolFactory().createSendingEvent(pending));
                 }
             });
 

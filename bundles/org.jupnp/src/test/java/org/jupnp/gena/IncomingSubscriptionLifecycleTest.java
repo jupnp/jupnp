@@ -27,6 +27,7 @@ import org.jupnp.data.SampleData;
 import org.jupnp.mock.MockRouter;
 import org.jupnp.mock.MockUpnpService;
 import org.jupnp.model.Namespace;
+import org.jupnp.model.ServiceManager;
 import org.jupnp.model.gena.LocalGENASubscription;
 import org.jupnp.model.message.StreamRequestMessage;
 import org.jupnp.model.message.StreamResponseMessage;
@@ -41,6 +42,7 @@ import org.jupnp.model.message.header.TimeoutHeader;
 import org.jupnp.model.message.header.UpnpHeader;
 import org.jupnp.model.meta.LocalDevice;
 import org.jupnp.model.meta.LocalService;
+import org.jupnp.model.state.StateVariableValue;
 import org.jupnp.protocol.ProtocolFactory;
 import org.jupnp.protocol.sync.ReceivingSubscribe;
 import org.jupnp.protocol.sync.ReceivingUnsubscribe;
@@ -364,6 +366,57 @@ class IncomingSubscriptionLifecycleTest {
                 .getValue().getValue());
         assertTrue(sentMessages.get(0).getBodyString().contains("<Status>0</Status>"));
         assertTrue(sentMessages.get(1).getBodyString().contains("<Status>1</Status>"));
+    }
+
+    @Test
+    void sendsLastChangeDeltasInOrderWhileTheInitialEventAndBacklogAreInFlight() throws Exception {
+        LocalDevice device = GenaSampleData.createTestDevice(GenaSampleData.LastChangeTestService.class);
+        LocalService<?> service = SampleData.getFirstService(device);
+        MockUpnpService upnpService = new MockUpnpService() {
+            @Override
+            protected MockRouter createRouter() {
+                return new MockRouter(getConfiguration(), getProtocolFactory()) {
+                    @Override
+                    public StreamResponseMessage getStreamResponseMessage(StreamRequestMessage request) {
+                        long sequence = request.getHeaders()
+                                .getFirstHeader(UpnpHeader.Type.SEQ, EventSequenceHeader.class).getValue().getValue();
+                        if (sequence == 0) {
+                            fireLastChange(service, "Volume=10");
+                            fireLastChange(service, "Mute=1");
+                        } else if (sequence == 1) {
+                            fireLastChange(service, "Volume=12");
+                        }
+                        return new StreamResponseMessage(UpnpResponse.Status.OK);
+                    }
+                };
+            }
+        };
+        upnpService.startup();
+        upnpService.getRegistry().addDevice(device);
+
+        Namespace namespace = upnpService.getConfiguration().getNamespace();
+        URL callback = URIUtil.createAbsoluteURL(SampleData.getLocalBaseURL(), namespace.getEventCallbackPath(service));
+        StreamRequestMessage request = new StreamRequestMessage(UpnpRequest.Method.SUBSCRIBE,
+                namespace.getEventSubscriptionPath(service));
+        request.getHeaders().add(UpnpHeader.Type.CALLBACK, new CallbackHeader(callback));
+        request.getHeaders().add(UpnpHeader.Type.NT, new NTEventHeader());
+        ReceivingSubscribe protocol = new ReceivingSubscribe(upnpService, request);
+        protocol.run();
+        protocol.responseSent(protocol.getOutputMessage());
+
+        List<StreamRequestMessage> sent = upnpService.getRouter().getSentStreamRequestMessages();
+        List<String> expected = List.of("Volume=5;Mute=0", "Volume=10", "Mute=1", "Volume=12");
+        assertEquals(expected.size(), sent.size());
+        for (int i = 0; i < expected.size(); i++) {
+            assertEquals((long) i, sent.get(i).getHeaders()
+                    .getFirstHeader(UpnpHeader.Type.SEQ, EventSequenceHeader.class).getValue().getValue());
+            assertTrue(sent.get(i).getBodyString().contains("<LastChange>" + expected.get(i) + "</LastChange>"));
+        }
+    }
+
+    private static void fireLastChange(LocalService<?> service, String delta) {
+        service.getManager().getPropertyChangeSupport().firePropertyChange(ServiceManager.EVENTED_STATE_VARIABLES, null,
+                List.of(new StateVariableValue<>(service.getStateVariable("LastChange"), delta)));
     }
 
     @Test

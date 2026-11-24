@@ -255,14 +255,12 @@ public abstract class SubscriptionCallback implements Runnable {
         protocol.run();
     }
 
-    public synchronized void end() {
-        if (subscription == null) {
-            return;
-        }
-        if (subscription instanceof LocalGENASubscription) {
-            endLocalSubscription((LocalGENASubscription) subscription);
-        } else if (subscription instanceof RemoteGENASubscription) {
-            endRemoteSubscription((RemoteGENASubscription) subscription);
+    public void end() {
+        GENASubscription activeSubscription = getSubscription();
+        if (activeSubscription instanceof LocalGENASubscription) {
+            endLocalSubscription((LocalGENASubscription) activeSubscription);
+        } else if (activeSubscription instanceof RemoteGENASubscription) {
+            endRemoteSubscription((RemoteGENASubscription) activeSubscription);
         }
     }
 
