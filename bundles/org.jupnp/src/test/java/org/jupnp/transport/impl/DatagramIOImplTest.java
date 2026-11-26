@@ -83,7 +83,16 @@ class DatagramIOImplTest {
         CountDownLatch firstSend = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         CountDownLatch sentByebye = new CountDownLatch(1);
+        CountDownLatch dispatchedByebye = new CountDownLatch(1);
         DatagramIOImpl io = new DatagramIOImpl(new DatagramIOConfigurationImpl()) {
+            @Override
+            public synchronized void send(DatagramPacket packet) {
+                if (isByebye(packet)) {
+                    dispatchedByebye.countDown();
+                }
+                super.send(packet);
+            }
+
             @Override
             void sendPacket(MulticastSocket socket, DatagramPacket packet) {
                 firstSend.countDown();
@@ -93,8 +102,7 @@ class DatagramIOImplTest {
                     Thread.currentThread().interrupt();
                     return;
                 }
-                if (new String(packet.getData(), packet.getOffset(), packet.getLength(), StandardCharsets.UTF_8)
-                        .contains("ssdp:byebye")) {
+                if (isByebye(packet)) {
                     sentByebye.countDown();
                 }
             }
@@ -110,11 +118,17 @@ class DatagramIOImplTest {
             io.send(new OutgoingNotificationRequestRootDevice(new Location(new NetworkAddress(loopback, 8080), "/desc"),
                     SampleData.createLocalDevice(), NotificationSubtype.BYEBYE));
 
+            assertEquals(0L, dispatchedByebye.getCount());
             release.countDown();
             assertTrue(sentByebye.await(2, TimeUnit.SECONDS));
         } finally {
             release.countDown();
             io.stop();
         }
+    }
+
+    private static boolean isByebye(DatagramPacket packet) {
+        return new String(packet.getData(), packet.getOffset(), packet.getLength(), StandardCharsets.UTF_8)
+                .contains("ssdp:byebye");
     }
 }

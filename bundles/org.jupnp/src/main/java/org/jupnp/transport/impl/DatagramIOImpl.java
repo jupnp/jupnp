@@ -178,6 +178,8 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
         }
     }
 
+    private DatagramPacket departurePacket;
+
     @Override
     public synchronized void send(OutgoingDatagramMessage message) {
         logger.debug("Sending message from address: {}", localAddress);
@@ -189,12 +191,20 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
 
         boolean byebye = message instanceof OutgoingNotificationRequest
                 && ((OutgoingNotificationRequest) message).getType() == NotificationSubtype.BYEBYE;
-        enqueue(packet, byebye);
+        DatagramPacket previousDeparturePacket = departurePacket;
+        if (byebye) {
+            departurePacket = packet;
+        }
+        try {
+            send(packet);
+        } finally {
+            departurePacket = previousDeparturePacket;
+        }
     }
 
     @Override
     public synchronized void send(DatagramPacket datagram) {
-        enqueue(datagram, false);
+        enqueue(datagram, datagram == departurePacket);
     }
 
     private void enqueue(DatagramPacket datagram, boolean byebye) {
