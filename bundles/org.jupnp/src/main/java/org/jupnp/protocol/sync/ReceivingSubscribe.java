@@ -19,6 +19,7 @@ import java.net.InetAddress;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.concurrent.RejectedExecutionException;
 
 import org.jupnp.UpnpService;
 import org.jupnp.model.gena.CancelReason;
@@ -111,6 +112,7 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         if (requestMessage.getSubscriptionId() != null) {
             return processRenewal(resource.getModel(), requestMessage);
         } else if (requestMessage.hasNotificationHeader() && requestMessage.getCallbackURLs() != null) {
+            newSubscription = true;
             return processNewSubscription(resource.getModel(), requestMessage);
         } else {
             logger.trace("No subscription ID, no NT or Callback, neither subscription or renewal: {}",
@@ -185,7 +187,6 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         }
 
         logger.trace("Adding subscription to registry: {}", subscription);
-        newSubscription = true;
         getUpnpService().getRegistry().addLocalSubscription(subscription);
 
         logger.trace("Returning subscription response, waiting to send initial event");
@@ -224,13 +225,24 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
             pending.establish();
 
             logger.trace("Response to subscription sent successfully, now sending initial event asynchronously");
-            getUpnpService().getConfiguration().getAsyncProtocolExecutor().execute(() -> {
+            try {
+                getUpnpService().getConfiguration().executeInitialEvent(() -> {
+                    try {
+                        initialEvent.run();
+                    } finally {
+                        pending.finishInitialEvent(
+                                () -> getUpnpService().getProtocolFactory().createSendingEvent(pending));
+                    }
+                });
+            } catch (RejectedExecutionException e) {
+                logger.debug("Initial event could not be scheduled, removing subscription: {}", pending, e);
+                getUpnpService().getRegistry().removeLocalSubscription(pending);
                 try {
-                    initialEvent.run();
+                    pending.end(null);
                 } finally {
-                    pending.finishInitialEvent(() -> getUpnpService().getProtocolFactory().createSendingEvent(pending));
+                    pending.clearInitialEventChanges();
                 }
-            });
+            }
 
         } else {
             logger.trace("Subscription request's response aborted, not sending initial event");

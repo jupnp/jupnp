@@ -20,12 +20,18 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
+import org.jupnp.UpnpServiceImpl;
 import org.jupnp.controlpoint.SubscriptionCallback;
 import org.jupnp.data.SampleData;
+import org.jupnp.mock.MockRouter;
 import org.jupnp.mock.MockUpnpService;
+import org.jupnp.mock.MockUpnpServiceConfiguration;
 import org.jupnp.model.Namespace;
 import org.jupnp.model.UnsupportedDataException;
 import org.jupnp.model.gena.CancelReason;
@@ -42,7 +48,12 @@ import org.jupnp.model.message.header.SubscriptionIdHeader;
 import org.jupnp.model.message.header.UpnpHeader;
 import org.jupnp.model.meta.LocalDevice;
 import org.jupnp.model.meta.LocalService;
+import org.jupnp.protocol.ProtocolFactory;
 import org.jupnp.protocol.sync.ReceivingSubscribe;
+import org.jupnp.registry.Registry;
+import org.jupnp.registry.RegistryImpl;
+import org.jupnp.registry.RegistryMaintainer;
+import org.jupnp.transport.Router;
 import org.jupnp.util.URIUtil;
 
 /**
@@ -123,6 +134,77 @@ class IncomingSubscriptionShutdownTest {
         assertDoesNotThrow(upnpService::shutdown);
         assertEquals(2, ended.get());
         service.getManager().getPropertyChangeSupport().firePropertyChange("Status", false, true);
+    }
+
+    @Test
+    void localEventCanRequestShutdownWhileAnotherThreadStopsTheService() throws Exception {
+        CountDownLatch eventStarted = new CountDownLatch(1);
+        CountDownLatch shutdownStarted = new CountDownLatch(1);
+        AtomicInteger routerShutdowns = new AtomicInteger();
+        UpnpServiceImpl upnpService = new UpnpServiceImpl(new MockUpnpServiceConfiguration()) {
+            @Override
+            protected Registry createRegistry(ProtocolFactory protocol) {
+                return new RegistryImpl(this) {
+                    @Override
+                    protected RegistryMaintainer createRegistryMaintainer() {
+                        return null;
+                    }
+                };
+            }
+
+            @Override
+            protected Router createRouter(ProtocolFactory protocol, Registry registry) {
+                return new MockRouter(getConfiguration(), protocol);
+            }
+
+            @Override
+            protected void shutdownRegistry() {
+                shutdownStarted.countDown();
+                super.shutdownRegistry();
+            }
+
+            @Override
+            protected void shutdownRouter() {
+                super.shutdownRouter();
+                routerShutdowns.incrementAndGet();
+            }
+        };
+        upnpService.startup();
+        LocalDevice device = GenaSampleData.createTestDevice();
+        upnpService.getRegistry().addDevice(device);
+        LocalService<?> service = SampleData.getFirstService(device);
+        LocalGENASubscription subscription = new LocalGENASubscription(service, 1800, List.of()) {
+            @Override
+            public void established() {
+            }
+
+            @Override
+            public void ended(CancelReason reason) {
+            }
+
+            @Override
+            public void eventReceived() {
+                eventStarted.countDown();
+                try {
+                    assertTrue(shutdownStarted.await(5, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    fail(e);
+                }
+                upnpService.shutdown();
+            }
+        };
+        upnpService.getRegistry().addLocalSubscription(subscription);
+        subscription.registerOnService();
+
+        CompletableFuture<Void> event = CompletableFuture.runAsync(
+                () -> service.getManager().getPropertyChangeSupport().firePropertyChange("Status", false, true));
+        assertTrue(eventStarted.await(5, TimeUnit.SECONDS));
+        CompletableFuture<Void> shutdown = CompletableFuture.runAsync(upnpService::shutdown);
+        CompletableFuture.allOf(event, shutdown).get(5, TimeUnit.SECONDS);
+
+        assertEquals(1, routerShutdowns.get());
+        assertNull(upnpService.getRegistry().getLocalSubscription(subscription.getSubscriptionId()));
     }
 
     @Test

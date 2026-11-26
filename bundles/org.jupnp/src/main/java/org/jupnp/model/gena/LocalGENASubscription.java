@@ -19,7 +19,6 @@ import java.net.URL;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -85,7 +84,7 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
         setSubscriptionDuration(requestedDurationSeconds);
 
         logger.trace("Reading initial state of local service at subscription time");
-        long currentTime = new Date().getTime();
+        long currentTime = System.currentTimeMillis();
         this.currentValues.clear();
 
         Collection<StateVariableValue> values = getService().getManager().getCurrentState();
@@ -167,26 +166,29 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
         logger.trace("Eventing triggered, getting state for subscription: {}", getSubscriptionId());
 
         Collection<StateVariableValue> newValues = (Collection) e.getNewValue();
+        List<StateVariableValue> changes = selectChanges(newValues);
         if (initialEventChanges != null) {
-            initialEventChanges.addLast(new ArrayList<>(newValues));
-        } else if (updateCurrentValues(newValues)) {
-            eventReceived();
+            if (!changes.isEmpty()) {
+                initialEventChanges.addLast(changes);
+            }
+        } else {
+            setCurrentValues(changes);
+            if (!changes.isEmpty()) {
+                eventReceived();
+            }
         }
     }
 
-    private boolean updateCurrentValues(Collection<StateVariableValue> newValues) {
-        long currentTime = new Date().getTime();
+    private List<StateVariableValue> selectChanges(Collection<StateVariableValue> newValues) {
+        long currentTime = System.currentTimeMillis();
         Set<String> excludedVariables = moderateStateVariables(currentTime, newValues);
-
-        currentValues.clear();
+        List<StateVariableValue> changes = new ArrayList<>();
         for (StateVariableValue newValue : newValues) {
             String name = newValue.getStateVariable().getName();
             if (!excludedVariables.contains(name)) {
-                logger.trace("Adding state variable value to current values of event: {} = {}",
-                        newValue.getStateVariable(), newValue);
-                currentValues.put(newValue.getStateVariable().getName(), newValue);
-
-                // Preserve "last sent" state for future moderation
+                changes.add(newValue);
+                // Apply moderation when the service changes. Time spent waiting for sequence zero
+                // or previous batches must not change which deltas qualify for notification.
                 lastSentTimestamp.put(name, currentTime);
                 if (newValue.getStateVariable().isModeratedNumericType()) {
                     lastSentNumericValue.put(name, Long.valueOf(newValue.toString()));
@@ -194,12 +196,14 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
             }
         }
 
-        if (currentValues.isEmpty()) {
-            logger.trace("No state variable values for event (all moderated out?), not triggering event");
-            return false;
+        return changes;
+    }
+
+    private void setCurrentValues(Collection<StateVariableValue> changes) {
+        currentValues.clear();
+        for (StateVariableValue value : changes) {
+            currentValues.put(value.getStateVariable().getName(), value);
         }
-        logger.trace("Propagating new state variable values to subscription: {}", this);
-        return true;
     }
 
     /**
@@ -288,21 +292,20 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
                 event.run();
             }
         } finally {
-            synchronized (this) {
-                initialEventChanges = null;
-            }
+            clearInitialEventChanges();
         }
     }
 
+    public synchronized void clearInitialEventChanges() {
+        initialEventChanges = null;
+    }
+
     private synchronized Runnable prepareNextInitialEventChange(Supplier<? extends Runnable> prepareEvent) {
-        if (initialEventChanges != null) {
-            while (!terminated && !initialEventChanges.isEmpty()) {
-                if (updateCurrentValues(initialEventChanges.removeFirst())) {
-                    return prepareEvent.get();
-                }
-            }
-            initialEventChanges = null;
+        if (!terminated && initialEventChanges != null && !initialEventChanges.isEmpty()) {
+            setCurrentValues(initialEventChanges.removeFirst());
+            return prepareEvent.get();
         }
+        initialEventChanges = null;
         return null;
     }
 

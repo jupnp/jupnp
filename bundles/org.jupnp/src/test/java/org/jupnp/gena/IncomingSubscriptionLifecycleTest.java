@@ -19,20 +19,27 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.net.URL;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.Test;
+import org.jupnp.DefaultUpnpServiceConfiguration.JUPnPExecutor;
 import org.jupnp.UpnpService;
 import org.jupnp.data.SampleData;
 import org.jupnp.mock.MockRouter;
 import org.jupnp.mock.MockUpnpService;
+import org.jupnp.mock.MockUpnpServiceConfiguration;
 import org.jupnp.model.Namespace;
 import org.jupnp.model.ServiceManager;
+import org.jupnp.model.gena.CancelReason;
 import org.jupnp.model.gena.LocalGENASubscription;
 import org.jupnp.model.message.StreamRequestMessage;
 import org.jupnp.model.message.StreamResponseMessage;
 import org.jupnp.model.message.UpnpRequest;
 import org.jupnp.model.message.UpnpResponse;
+import org.jupnp.model.message.gena.IncomingSubscribeRequestMessage;
 import org.jupnp.model.message.gena.OutgoingSubscribeResponseMessage;
 import org.jupnp.model.message.header.CallbackHeader;
 import org.jupnp.model.message.header.EventSequenceHeader;
@@ -381,10 +388,10 @@ class IncomingSubscriptionLifecycleTest {
                         long sequence = request.getHeaders()
                                 .getFirstHeader(UpnpHeader.Type.SEQ, EventSequenceHeader.class).getValue().getValue();
                         if (sequence == 0) {
-                            fireLastChange(service, "Volume=10");
-                            fireLastChange(service, "Mute=1");
+                            fireModeratedLastChange(service, "Volume=10");
+                            fireModeratedLastChange(service, "Mute=1");
                         } else if (sequence == 1) {
-                            fireLastChange(service, "Volume=12");
+                            fireModeratedLastChange(service, "Volume=12");
                         }
                         return new StreamResponseMessage(UpnpResponse.Status.OK);
                     }
@@ -414,9 +421,127 @@ class IncomingSubscriptionLifecycleTest {
         }
     }
 
-    private static void fireLastChange(LocalService<?> service, String delta) {
+    private static void fireModeratedLastChange(LocalService<?> service, String delta) {
+        try {
+            // Wait past the state variable's 200 ms moderation window while delivery is in progress.
+            Thread.sleep(250);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e);
+        }
         service.getManager().getPropertyChangeSupport().firePropertyChange(ServiceManager.EVENTED_STATE_VARIABLES, null,
                 List.of(new StateVariableValue<>(service.getStateVariable("LastChange"), delta)));
+    }
+
+    @Test
+    void removesSubscriptionWhenTheDefaultExecutorRejectsItsInitialEvent() throws Exception {
+        JUPnPExecutor executor = new JUPnPExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaximumPoolSize(1);
+        CountDownLatch release = new CountDownLatch(1);
+        executor.execute(() -> {
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        int freeSlots = executor.getQueue().remainingCapacity();
+        for (int i = 0; i < freeSlots; i++) {
+            executor.execute(() -> {
+            });
+        }
+
+        MockUpnpService upnpService = new MockUpnpService(new MockUpnpServiceConfiguration() {
+            @Override
+            public ExecutorService getAsyncProtocolExecutor() {
+                return executor;
+            }
+        });
+        upnpService.startup();
+        try {
+            LocalDevice device = GenaSampleData.createTestDevice();
+            upnpService.getRegistry().addDevice(device);
+            LocalService<?> service = SampleData.getFirstService(device);
+            ReceivingSubscribe protocol = new ReceivingSubscribe(upnpService,
+                    newSubscribeRequest(upnpService, service));
+            protocol.run();
+            OutgoingSubscribeResponseMessage response = protocol.getOutputMessage();
+            String sid = response.getHeaders().getFirstHeader(UpnpHeader.Type.SID, SubscriptionIdHeader.class)
+                    .getValue();
+            LocalGENASubscription subscription = upnpService.getRegistry().getLocalSubscription(sid);
+            assertNotNull(subscription);
+
+            protocol.responseSent(response);
+
+            assertNull(upnpService.getRegistry().getLocalSubscription(sid));
+            service.getManager().getPropertyChangeSupport().firePropertyChange("Status", false, true);
+            assertTrue(upnpService.getRouter().getSentStreamRequestMessages().isEmpty());
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(2, TimeUnit.SECONDS));
+            upnpService.shutdown();
+        }
+    }
+
+    @Test
+    void establishesNewSubscriptionCreatedByAnOverride() throws Exception {
+        MockUpnpService upnpService = new MockUpnpService();
+        upnpService.startup();
+        LocalDevice device = GenaSampleData.createTestDevice();
+        upnpService.getRegistry().addDevice(device);
+        LocalService<?> service = SampleData.getFirstService(device);
+        AtomicBoolean established = new AtomicBoolean();
+        AtomicBoolean eventReceived = new AtomicBoolean();
+
+        ReceivingSubscribe protocol = new ReceivingSubscribe(upnpService, newSubscribeRequest(upnpService, service)) {
+            @Override
+            protected OutgoingSubscribeResponseMessage processNewSubscription(LocalService service,
+                    IncomingSubscribeRequestMessage request) {
+                try {
+                    subscription = new LocalGENASubscription(service, 120, request.getCallbackURLs()) {
+                        @Override
+                        public void established() {
+                            established.set(true);
+                        }
+
+                        @Override
+                        public void ended(CancelReason reason) {
+                        }
+
+                        @Override
+                        public void eventReceived() {
+                            eventReceived.set(true);
+                        }
+                    };
+                    getUpnpService().getRegistry().addLocalSubscription(subscription);
+                    return new OutgoingSubscribeResponseMessage(subscription);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            }
+        };
+
+        protocol.run();
+        protocol.responseSent(protocol.getOutputMessage());
+
+        assertTrue(established.get());
+        assertEquals(1, upnpService.getRouter().getSentStreamRequestMessages().size());
+        service.getManager().getPropertyChangeSupport().firePropertyChange("Status", false, true);
+        assertTrue(eventReceived.get());
+        upnpService.shutdown();
+    }
+
+    private static StreamRequestMessage newSubscribeRequest(UpnpService upnpService, LocalService<?> service)
+            throws Exception {
+        Namespace namespace = upnpService.getConfiguration().getNamespace();
+        URL callback = URIUtil.createAbsoluteURL(SampleData.getLocalBaseURL(), namespace.getEventCallbackPath(service));
+        StreamRequestMessage request = new StreamRequestMessage(UpnpRequest.Method.SUBSCRIBE,
+                namespace.getEventSubscriptionPath(service));
+        request.getHeaders().add(UpnpHeader.Type.CALLBACK, new CallbackHeader(callback));
+        request.getHeaders().add(UpnpHeader.Type.NT, new NTEventHeader());
+        return request;
     }
 
     @Test

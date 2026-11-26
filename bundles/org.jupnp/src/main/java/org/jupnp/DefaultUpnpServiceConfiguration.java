@@ -18,6 +18,7 @@ package org.jupnp;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -295,6 +296,16 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
     }
 
     @Override
+    public void executeInitialEvent(Runnable notification) {
+        ExecutorService executor = getAsyncProtocolExecutor();
+        if (executor instanceof JUPnPExecutor) {
+            executor.execute(new InitialEventTask(notification));
+        } else {
+            executor.execute(notification);
+        }
+    }
+
+    @Override
     public ExecutorService getSyncProtocolExecutorService() {
         return getDefaultExecutorService();
     }
@@ -373,6 +384,9 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
                 // The pool is bounded and rejections will happen during shutdown
                 @Override
                 public void rejectedExecution(Runnable runnable, ThreadPoolExecutor threadPoolExecutor) {
+                    if (runnable instanceof InitialEventTask) {
+                        throw new RejectedExecutionException("Thread pool rejected initial GENA notification");
+                    }
                     // Log and discard
                     LoggerFactory.getLogger(DefaultUpnpServiceConfiguration.class)
                             .warn("Thread pool rejected execution of {}", runnable.getClass());
@@ -403,6 +417,19 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
                 LoggerFactory.getLogger(DefaultUpnpServiceConfiguration.class).warn("Thread terminated {} abruptly",
                         runnable, throwable);
             }
+        }
+    }
+
+    private static final class InitialEventTask implements Runnable {
+        private final Runnable notification;
+
+        InitialEventTask(Runnable notification) {
+            this.notification = notification;
+        }
+
+        @Override
+        public void run() {
+            notification.run();
         }
     }
 
