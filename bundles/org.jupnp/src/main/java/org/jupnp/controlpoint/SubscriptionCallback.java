@@ -157,7 +157,9 @@ public abstract class SubscriptionCallback implements Runnable {
                 @Override
                 public void ended(CancelReason reason) {
                     synchronized (SubscriptionCallback.this) {
-                        SubscriptionCallback.this.setSubscription(null);
+                        if (SubscriptionCallback.this.getSubscription() == this) {
+                            SubscriptionCallback.this.setSubscription(null);
+                        }
                         SubscriptionCallback.this.ended(this, reason, null);
                     }
                 }
@@ -178,6 +180,9 @@ public abstract class SubscriptionCallback implements Runnable {
 
             logger.trace("Notifying subscription callback of local subscription availability");
             localSubscription.establish();
+            if (getSubscription() != localSubscription) {
+                return;
+            }
 
             logger.trace("Simulating first initial event for local subscription callback, sequence: {}",
                     localSubscription.getCurrentSequence());
