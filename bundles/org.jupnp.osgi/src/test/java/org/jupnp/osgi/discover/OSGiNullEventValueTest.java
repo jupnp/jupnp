@@ -136,10 +136,11 @@ class OSGiNullEventValueTest {
     @Test
     void vendorDatatypeValueIsLeftOutOfEvents() {
         receive(0, "Vendor", "something");
+        assertTrue(events.isEmpty());
+
         receive(1, "Status", "1");
-        assertEquals(2, events.size());
-        assertTrue(events.get(0).isEmpty());
-        assertEquals(1, events.get(1).size());
-        assertEquals(Boolean.TRUE, events.get(1).get("Status"));
+        assertEquals(1, events.size());
+        assertEquals(1, events.get(0).size());
+        assertEquals(Boolean.TRUE, events.get(0).get("Status"));
     }
 }

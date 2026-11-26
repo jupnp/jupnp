@@ -115,7 +115,9 @@ public class UPnPEventListenerSubscriptionCallback extends SubscriptionCallback 
             dictionary.put(variable.getStateVariable().getName(), value);
         }
 
-        listener.notifyUPnPEvent(getDeviceId(), getServiceId(), dictionary);
+        if (!dictionary.isEmpty()) {
+            listener.notifyUPnPEvent(getDeviceId(), getServiceId(), dictionary);
+        }
     }
 
     @Override
