@@ -43,7 +43,13 @@ class UPnPActionImplTest {
     void keepsEmptyBinaryOutputs() throws Exception {
         assertArrayEquals(new byte[0], (byte[]) invokeWithEmptyOutput(Builtin.BIN_BASE64).get("Payload"));
         assertArrayEquals(new byte[0], (byte[]) invokeWithEmptyOutput(Builtin.BIN_HEX).get("Payload"));
-        assertNull(invokeWithEmptyOutput(Builtin.STRING).get("Payload"));
+    }
+
+    @Test
+    void keepsEmptyStringOutput() throws Exception {
+        Dictionary output = invokeWithEmptyOutput(Builtin.STRING);
+        assertEquals(1, output.size());
+        assertEquals("", output.get("Payload"));
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

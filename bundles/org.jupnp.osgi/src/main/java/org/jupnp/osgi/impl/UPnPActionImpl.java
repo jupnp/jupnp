@@ -142,7 +142,8 @@ public class UPnPActionImpl implements UPnPAction {
                     Object value = argument.getValue();
 
                     Builtin type = argument.getDatatype().getBuiltin();
-                    if (value != null || type == Builtin.BIN_BASE64 || type == Builtin.BIN_HEX) {
+                    if (value != null || type == Builtin.STRING || type == Builtin.BIN_BASE64
+                            || type == Builtin.BIN_HEX) {
                         value = OSGiDataConverter.toOSGiValue(argument.getDatatype(), value);
                     }
                     if (value == null) {
