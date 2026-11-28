@@ -29,18 +29,20 @@ public enum TransportState {
     NO_MEDIA_PRESENT,
     CUSTOM;
 
-    String value;
-
-    TransportState() {
-        this.value = name();
-    }
-
+    /**
+     * @return The name of this constant. A constant is shared by all devices and doesn't hold the vendor-defined value
+     *         a device reported for {@link #CUSTOM}, see {@link TransportInfo#getCurrentTransportStateValue()}.
+     */
     public String getValue() {
-        return value;
+        return name();
     }
 
+    /**
+     * @deprecated Has no effect. Use {@link TransportInfo#fromValues(String, String, String)} for vendor-defined
+     *             values.
+     */
+    @Deprecated
     public TransportState setValue(String value) {
-        this.value = value;
         return this;
     }
 
@@ -48,7 +50,7 @@ public enum TransportState {
         try {
             return TransportState.valueOf(s);
         } catch (IllegalArgumentException e) {
-            return TransportState.CUSTOM.setValue(s);
+            return TransportState.CUSTOM;
         }
     }
 }

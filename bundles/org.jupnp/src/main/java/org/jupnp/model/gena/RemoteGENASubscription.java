@@ -42,6 +42,8 @@ import org.jupnp.model.types.UnsignedIntegerFourBytes;
  */
 public abstract class RemoteGENASubscription extends GENASubscription<RemoteService> {
 
+    private boolean terminated;
+
     protected PropertyChangeSupport propertyChangeSupport = new PropertyChangeSupport(this);
 
     protected RemoteGENASubscription(RemoteService service, int requestedDurationSeconds) {
@@ -68,7 +70,9 @@ public abstract class RemoteGENASubscription extends GENASubscription<RemoteServ
      */
 
     public synchronized void establish() {
-        established();
+        if (!terminated) {
+            established();
+        }
     }
 
     public synchronized void fail(UpnpResponse responseStatus) {
@@ -76,10 +80,16 @@ public abstract class RemoteGENASubscription extends GENASubscription<RemoteServ
     }
 
     public synchronized void end(CancelReason reason, UpnpResponse response) {
-        ended(reason, response);
+        if (!terminated) {
+            terminated = true;
+            ended(reason, response);
+        }
     }
 
     public synchronized void receive(UnsignedIntegerFourBytes sequence, Collection<StateVariableValue> newValues) {
+        if (terminated) {
+            return;
+        }
 
         if (this.currentSequence != null) {
 

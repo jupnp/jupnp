@@ -397,6 +397,29 @@ public interface Registry {
 
     /**
      * Called internally by the UPnP stack, during GENA protocol execution.
+     * <p>
+     * Outgoing subscriptions are removed together with the remote device of their service. A subscription
+     * is therefore only added if that device is (still) registered.
+     * </p>
+     * <p>
+     * Implementations that allow concurrent registry access should override this method to check device identity,
+     * check subscription ID availability and add the subscription atomically.
+     * </p>
+     *
+     * @return <tt>false</tt> if the original device is no longer registered or the subscription ID is in use.
+     */
+    default boolean addRemoteSubscriptionIfDevicePresent(RemoteGENASubscription subscription) {
+        RemoteDevice device = subscription.getService().getDevice().getRoot();
+        if (getRemoteDevice(device.getIdentity().getUdn(), true) != device
+                || getRemoteSubscription(subscription.getSubscriptionId()) != null) {
+            return false;
+        }
+        addRemoteSubscription(subscription);
+        return true;
+    }
+
+    /**
+     * Called internally by the UPnP stack, during GENA protocol execution.
      */
     RemoteGENASubscription getRemoteSubscription(String subscriptionId);
 
