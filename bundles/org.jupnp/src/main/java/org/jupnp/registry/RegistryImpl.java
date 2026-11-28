@@ -16,6 +16,7 @@
 package org.jupnp.registry;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -32,6 +33,7 @@ import org.jupnp.UpnpServiceConfiguration;
 import org.jupnp.model.DiscoveryOptions;
 import org.jupnp.model.ExpirationDetails;
 import org.jupnp.model.ServiceReference;
+import org.jupnp.model.gena.CancelReason;
 import org.jupnp.model.gena.LocalGENASubscription;
 import org.jupnp.model.gena.RemoteGENASubscription;
 import org.jupnp.model.meta.Device;
@@ -642,11 +644,28 @@ public class RegistryImpl implements Registry {
             remoteItemsLock.writeLock().unlock();
         }
 
+        List<LocalGENASubscription> localSubscriptions = new ArrayList<>();
         localItemsLock.writeLock().lock();
         try {
+            for (RegistryItem<String, LocalGENASubscription> item : localItems.getSubscriptionItems()) {
+                localSubscriptions.add(item.getItem());
+            }
             localItems.shutdown();
         } finally {
             localItemsLock.writeLock().unlock();
+        }
+
+        // End the incoming subscriptions, this removes them as listeners from their service. The service belongs to
+        // the application and outlives this registry, it might be published again on another UPnP stack. Not on an
+        // executor as they are shut down next, and not while holding the lock as ended() can be application code.
+        logger.trace("Ending all incoming subscriptions to local devices during shutdown");
+        for (LocalGENASubscription localSubscription : localSubscriptions) {
+            try {
+                localSubscription.end(CancelReason.DEVICE_WAS_REMOVED);
+            } catch (RuntimeException e) {
+                logger.warn("Failed to end local subscription during shutdown: {}",
+                        localSubscription.getSubscriptionId(), e);
+            }
         }
 
         for (RegistryListener listener : registryListeners) {

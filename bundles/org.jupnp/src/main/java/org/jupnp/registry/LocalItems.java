@@ -272,6 +272,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
 
     @Override
     void shutdown() {
+        // Only forgets them here, RegistryImpl#shutdown() ends them after it has released the lock
         logger.trace("Clearing all registered subscriptions to local devices during shutdown");
         getSubscriptionItems().clear();
 

@@ -79,6 +79,12 @@ public class GenaSampleData {
         }
     }
 
+    @org.jupnp.binding.annotations.UpnpService(serviceId = @UpnpServiceId("RenderingControl"), serviceType = @UpnpServiceType(value = "RenderingControl", version = 1))
+    public static class LastChangeTestService {
+        @UpnpStateVariable(name = "LastChange", eventMaximumRateMilliseconds = 200)
+        private String lastChange = "Volume=5;Mute=0";
+    }
+
     public enum Foo {
         foo,
         bar

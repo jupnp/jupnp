@@ -17,6 +17,7 @@ package org.jupnp;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 
 import org.jupnp.binding.xml.DeviceDescriptorBinder;
 import org.jupnp.binding.xml.ServiceDescriptorBinder;
@@ -229,6 +230,16 @@ public interface UpnpServiceConfiguration {
      * @return The executor which runs the processing of asynchronous aspects of the UPnP stack (discovery).
      */
     Executor getAsyncProtocolExecutor();
+
+    /**
+     * Schedule an initial GENA notification. Configurations with executors that discard work silently
+     * must override this method to report a rejection so the undeliverable subscription can be removed.
+     *
+     * @throws RejectedExecutionException if the notification cannot be scheduled.
+     */
+    default void executeInitialEvent(Runnable notification) {
+        getAsyncProtocolExecutor().execute(notification);
+    }
 
     /**
      * @return The executor service which runs the processing of synchronous aspects of the UPnP stack (description,

@@ -73,6 +73,8 @@ public class UpnpServiceImpl implements UpnpService {
     private volatile boolean isInitialSearchEnabled = true;
 
     private final Object lock = new Object();
+    private boolean shuttingDown;
+    private boolean startupPending;
 
     protected UpnpServiceConfiguration configuration;
     protected ProtocolFactory protocolFactory;
@@ -175,20 +177,39 @@ public class UpnpServiceImpl implements UpnpService {
     }
 
     @Override
-    public synchronized void shutdown() {
+    public void shutdown() {
         shutdown(false);
     }
 
     protected void shutdown(boolean separateThread) {
         Runnable shutdown = () -> {
             synchronized (lock) {
-                if (isRunning) {
-                    logger.info("Shutting down UPnP service...");
-                    shutdownRegistry();
-                    shutdownConfiguration();
-                    shutdownRouter();
-                    logger.info("UPnP service shutdown completed");
-                    isRunning = false;
+                if (!isRunning || shuttingDown) {
+                    return;
+                }
+                shuttingDown = true;
+            }
+            // Registry shutdown invokes application callbacks. A callback can itself request shutdown,
+            // so neither service lifecycle monitor may be held while waiting for it to finish.
+            boolean completed = false;
+            try {
+                logger.info("Shutting down UPnP service...");
+                shutdownRegistry();
+                shutdownConfiguration();
+                shutdownRouter();
+                completed = true;
+                logger.info("UPnP service shutdown completed");
+            } finally {
+                synchronized (lock) {
+                    if (completed) {
+                        isRunning = false;
+                    }
+                    boolean startAfterShutdown = completed && startupPending;
+                    startupPending = false;
+                    shuttingDown = false;
+                    if (startAfterShutdown) {
+                        startService();
+                    }
                 }
             }
         };
@@ -248,33 +269,40 @@ public class UpnpServiceImpl implements UpnpService {
     @Override
     public void startup() {
         synchronized (lock) {
-            if (!isRunning) {
-                logger.info("Starting UPnP service...");
-
-                // Instantiation order is important: Router needs to start its network services after registry is ready
-
-                logger.debug("Using configuration: {}", getConfiguration().getClass().getName());
-
-                this.protocolFactory = createProtocolFactory();
-                this.registry = createRegistry(protocolFactory);
-                this.router = createRouter(protocolFactory, registry);
-
-                try {
-                    this.router.enable();
-                } catch (RouterException e) {
-                    throw new RuntimeException("Enabling network router failed", e);
-                }
-
-                this.controlPoint = createControlPoint(protocolFactory, registry);
-
-                logger.debug("UPnP service started successfully");
-
-                isRunning = true;
-
-                if (isInitialSearchEnabled) {
-                    controlPoint.search(new STAllHeader());
-                }
+            if (shuttingDown) {
+                // A shutdown callback can request startup without waiting for teardown.
+                startupPending = true;
+            } else if (!isRunning) {
+                startService();
             }
+        }
+    }
+
+    private void startService() {
+        logger.info("Starting UPnP service...");
+
+        // Instantiation order is important: Router needs to start its network services after registry is ready
+
+        logger.debug("Using configuration: {}", getConfiguration().getClass().getName());
+
+        this.protocolFactory = createProtocolFactory();
+        this.registry = createRegistry(protocolFactory);
+        this.router = createRouter(protocolFactory, registry);
+
+        try {
+            this.router.enable();
+        } catch (RouterException e) {
+            throw new RuntimeException("Enabling network router failed", e);
+        }
+
+        this.controlPoint = createControlPoint(protocolFactory, registry);
+
+        logger.debug("UPnP service started successfully");
+
+        isRunning = true;
+
+        if (isInitialSearchEnabled) {
+            controlPoint.search(new STAllHeader());
         }
     }
 }
