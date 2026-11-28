@@ -159,7 +159,9 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
             while (it.hasNext()) {
                 final RegistryItem<String, LocalGENASubscription> incomingSubscription = it.next();
 
-                UDN subscriptionForUDN = incomingSubscription.getItem().getService().getDevice().getIdentity().getUdn();
+                // The service might belong to an embedded device, the registered device is always its root
+                UDN subscriptionForUDN = incomingSubscription.getItem().getService().getDevice().getRoot().getIdentity()
+                        .getUdn();
 
                 if (subscriptionForUDN.equals(registeredDevice.getIdentity().getUdn())) {
                     logger.trace("Removing incoming subscription: {}", incomingSubscription.getKey());

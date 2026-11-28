@@ -77,6 +77,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
                     .execute(() -> subscription.end(CancelReason.RENEWAL_FAILED, responseMessage.getOperation()));
         } else if (!responseMessage.isValidHeaders()) {
             logger.error("Subscription renewal failed, invalid or missing (SID, Timeout) response headers");
+            getUpnpService().getRegistry().removeRemoteSubscription(subscription);
             getUpnpService().getConfiguration().getRegistryListenerExecutor()
                     .execute(() -> subscription.end(CancelReason.RENEWAL_FAILED, responseMessage.getOperation()));
         } else {
