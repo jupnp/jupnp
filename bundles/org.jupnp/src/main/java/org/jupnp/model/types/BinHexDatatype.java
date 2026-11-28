@@ -35,11 +35,16 @@ public class BinHexDatatype extends AbstractDatatype<byte[]> {
         if (s.isEmpty()) {
             return null;
         }
+        byte[] decoded;
         try {
-            return HexBin.stringToBytes(s);
-        } catch (Exception e) {
-            throw new InvalidValueException(e.getMessage(), e);
+            decoded = HexBin.stringToBytes(s);
+        } catch (RuntimeException e) {
+            throw new InvalidValueException("Invalid hexadecimal value", e);
         }
+        if (decoded == null) {
+            throw new InvalidValueException("Invalid hexadecimal value");
+        }
+        return decoded;
     }
 
     @Override

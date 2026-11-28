@@ -17,7 +17,6 @@ package org.jupnp.osgi.util;
 
 import java.net.URI;
 import java.text.SimpleDateFormat;
-import java.util.Base64;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.TimeZone;
@@ -26,7 +25,6 @@ import org.jupnp.model.types.Datatype;
 import org.jupnp.model.types.Datatype.Builtin;
 import org.jupnp.model.types.UnsignedVariableInteger;
 import org.osgi.service.upnp.UPnPLocalStateVariable;
-import org.osgi.service.upnp.UPnPStateVariable;
 
 /**
  * @author Bruce Green
@@ -85,15 +83,16 @@ public class OSGiDataConverter {
     }
 
     private static boolean isByte(Builtin builtin) {
-        return builtin.equals(Builtin.BIN_HEX);
-    }
-
-    private static boolean isBase64(Builtin builtin) {
-        return builtin.equals(Builtin.BIN_BASE64);
+        return builtin.equals(Builtin.BIN_HEX) || builtin.equals(Builtin.BIN_BASE64);
     }
 
     public static Object toOSGiValue(Datatype type, Object input) {
         Object output = null;
+
+        if (type.getBuiltin() == null) {
+            // A vendor-defined datatype, there is no OSGi type for it
+            return null;
+        }
 
         if (isInteger(type.getBuiltin())) {
             output = toInteger(input);
@@ -113,8 +112,6 @@ public class OSGiDataConverter {
             output = toBoolean(input);
         } else if (isByte(type.getBuiltin())) {
             output = toByte(input);
-        } else if (isBase64(type.getBuiltin())) {
-            output = toBase64(input);
         }
 
         return output;
@@ -148,7 +145,7 @@ public class OSGiDataConverter {
         if (input instanceof Long) {
             output = (Long) input;
         } else if (input instanceof UnsignedVariableInteger) {
-            output = (long) ((UnsignedVariableInteger) input).getValue().intValue();
+            output = ((UnsignedVariableInteger) input).getValue();
         } else if (input instanceof Calendar) {
             Calendar calendar = (Calendar) input;
             output = toMilliseconds(calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE),
@@ -247,37 +244,16 @@ public class OSGiDataConverter {
 
     /*
      * byte[] bin.base64, bin.hex
+     *
+     * Base64Datatype and BinHexDatatype hold the decoded value as byte[], which is the OSGi type as well.
      */
     private static byte[] toByte(Object input) {
         byte[] output = null;
 
         if (input == null) {
             output = new byte[0];
-        } else {
-            if (input instanceof Byte[]) {
-                Byte[] Bytes = (Byte[]) input;
-                byte[] bytes = new byte[Bytes.length];
-                for (int i = 0; i < Bytes.length; i++) {
-                    bytes[i] = Bytes[i];
-                }
-                output = bytes;
-            }
-        }
-
-        return output;
-    }
-
-    private static byte[] toBase64(Object input) {
-        byte[] output = null;
-
-        if (input == null) {
-            output = toByte(input);
-        } else if (input instanceof Byte[]) {
-            output = toByte(input);
-        }
-
-        if (output != null) {
-            output = Base64.getDecoder().decode(output);
+        } else if (input instanceof byte[]) {
+            output = ((byte[]) input).clone();
         }
 
         return output;
@@ -307,19 +283,9 @@ public class OSGiDataConverter {
             } else {
                 value = value.toString();
             }
-        } else if (value instanceof byte[]) {
-
-            if (type.equals(UPnPStateVariable.TYPE_BIN_BASE64)) {
-                value = Base64.getEncoder().encode((byte[]) value);
-            }
-
-            byte[] bytes = (byte[]) value;
-            Byte[] Bytes = new Byte[bytes.length];
-            for (int i = 0; i < bytes.length; i++) {
-                Bytes[i] = bytes[i];
-            }
-            value = Bytes;
-        } else {
+        } else if (!(value instanceof byte[])) {
+            // A byte[] (bin.base64, bin.hex) is kept: Base64Datatype and BinHexDatatype take the decoded value as
+            // byte[] and encode it when it is written
             value = value.toString();
         }
 

@@ -20,6 +20,7 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.jupnp.UpnpServiceConfiguration;
 import org.jupnp.model.NetworkAddress;
@@ -49,7 +50,7 @@ public class MockRouter implements Router {
 
     public int counter = -1;
     public List<IncomingDatagramMessage> incomingDatagramMessages = new ArrayList<>();
-    public List<OutgoingDatagramMessage> outgoingDatagramMessages = new ArrayList<>();
+    public List<OutgoingDatagramMessage> outgoingDatagramMessages = new CopyOnWriteArrayList<>();
     public List<UpnpStream> receivedUpnpStreams = new ArrayList<>();
     public List<StreamRequestMessage> sentStreamRequestMessages = new ArrayList<>();
     public List<byte[]> broadcastedBytes = new ArrayList<>();

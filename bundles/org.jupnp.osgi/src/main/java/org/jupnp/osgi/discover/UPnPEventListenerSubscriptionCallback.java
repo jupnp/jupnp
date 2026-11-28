@@ -108,13 +108,16 @@ public class UPnPEventListenerSubscriptionCallback extends SubscriptionCallback 
             if (value == null) {
                 logger.error("Cannot convert variable {} to OSGi type {}.", variable.getStateVariable().getName(),
                         variable.getDatatype().getDisplayString());
-                // TODO: throw an exception
+                // A Dictionary cannot hold null values: leave this variable out, the others are still delivered
+                continue;
             }
 
             dictionary.put(variable.getStateVariable().getName(), value);
         }
 
-        listener.notifyUPnPEvent(getDeviceId(), getServiceId(), dictionary);
+        if (!dictionary.isEmpty()) {
+            listener.notifyUPnPEvent(getDeviceId(), getServiceId(), dictionary);
+        }
     }
 
     @Override
