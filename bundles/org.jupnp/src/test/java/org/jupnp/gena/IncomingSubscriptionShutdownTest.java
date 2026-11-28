@@ -141,22 +141,7 @@ class IncomingSubscriptionShutdownTest {
         CountDownLatch eventStarted = new CountDownLatch(1);
         CountDownLatch shutdownStarted = new CountDownLatch(1);
         AtomicInteger routerShutdowns = new AtomicInteger();
-        UpnpServiceImpl upnpService = new UpnpServiceImpl(new MockUpnpServiceConfiguration()) {
-            @Override
-            protected Registry createRegistry(ProtocolFactory protocol) {
-                return new RegistryImpl(this) {
-                    @Override
-                    protected RegistryMaintainer createRegistryMaintainer() {
-                        return null;
-                    }
-                };
-            }
-
-            @Override
-            protected Router createRouter(ProtocolFactory protocol, Registry registry) {
-                return new MockRouter(getConfiguration(), protocol);
-            }
-
+        UpnpServiceImpl upnpService = new TestUpnpService() {
             @Override
             protected void shutdownRegistry() {
                 shutdownStarted.countDown();
@@ -205,6 +190,55 @@ class IncomingSubscriptionShutdownTest {
 
         assertEquals(1, routerShutdowns.get());
         assertNull(upnpService.getRegistry().getLocalSubscription(subscription.getSubscriptionId()));
+    }
+
+    @Test
+    void startsFreshServiceOnceAfterConcurrentStartupRequestsDuringShutdown() throws Exception {
+        CountDownLatch shutdownStarted = new CountDownLatch(1);
+        CountDownLatch finishShutdown = new CountDownLatch(1);
+        AtomicInteger registriesCreated = new AtomicInteger();
+        UpnpServiceImpl upnpService = new TestUpnpService() {
+            @Override
+            protected Registry createRegistry(ProtocolFactory protocol) {
+                registriesCreated.incrementAndGet();
+                return super.createRegistry(protocol);
+            }
+
+            @Override
+            protected void shutdownRegistry() {
+                shutdownStarted.countDown();
+                try {
+                    assertTrue(finishShutdown.await(5, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    fail(e);
+                }
+                super.shutdownRegistry();
+            }
+        };
+        upnpService.startup();
+        Registry oldRegistry = upnpService.getRegistry();
+        Router oldRouter = upnpService.getRouter();
+
+        CompletableFuture<Void> shutdown = CompletableFuture.runAsync(upnpService::shutdown);
+        try {
+            assertTrue(shutdownStarted.await(5, TimeUnit.SECONDS));
+            CompletableFuture.runAsync(() -> {
+                upnpService.startup();
+                upnpService.startup();
+            }).get(5, TimeUnit.SECONDS);
+            assertSame(oldRegistry, upnpService.getRegistry());
+            assertSame(oldRouter, upnpService.getRouter());
+        } finally {
+            finishShutdown.countDown();
+        }
+        shutdown.get(5, TimeUnit.SECONDS);
+
+        assertEquals(2, registriesCreated.get());
+        assertNotSame(oldRegistry, upnpService.getRegistry());
+        assertNotSame(oldRouter, upnpService.getRouter());
+        assertSame(upnpService.getRegistry(), upnpService.getControlPoint().getRegistry());
+        upnpService.shutdown();
     }
 
     @Test
@@ -267,5 +301,26 @@ class IncomingSubscriptionShutdownTest {
         // The service is still there and its state changes again, nobody must be listening anymore
         service.getManager().getPropertyChangeSupport().firePropertyChange("Status", true, false);
         assertEquals(List.of(0L, 1L), receivedSequences);
+    }
+
+    private static class TestUpnpService extends UpnpServiceImpl {
+        TestUpnpService() {
+            super(new MockUpnpServiceConfiguration());
+        }
+
+        @Override
+        protected Registry createRegistry(ProtocolFactory protocol) {
+            return new RegistryImpl(this) {
+                @Override
+                protected RegistryMaintainer createRegistryMaintainer() {
+                    return null;
+                }
+            };
+        }
+
+        @Override
+        protected Router createRouter(ProtocolFactory protocol, Registry registry) {
+            return new MockRouter(getConfiguration(), protocol);
+        }
     }
 }
