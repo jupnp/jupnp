@@ -13,7 +13,7 @@
  *
  * SPDX-License-Identifier: CDDL-1.0
  */
-package org.jupnp.support.renderingcontrol;
+package org.jupnp.support;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -24,6 +24,8 @@ import org.jupnp.binding.annotations.AnnotationLocalServiceBinder;
 import org.jupnp.binding.annotations.UpnpAction;
 import org.jupnp.binding.annotations.UpnpInputArgument;
 import org.jupnp.model.DefaultServiceManager;
+import org.jupnp.model.UnsupportedDataException;
+import org.jupnp.model.action.ActionException;
 import org.jupnp.model.action.ActionInvocation;
 import org.jupnp.model.message.StreamRequestMessage;
 import org.jupnp.model.message.UpnpMessage;
@@ -35,10 +37,13 @@ import org.jupnp.model.meta.LocalService;
 import org.jupnp.model.types.SoapActionType;
 import org.jupnp.model.types.UnsignedIntegerFourBytes;
 import org.jupnp.model.types.UnsignedIntegerTwoBytes;
+import org.jupnp.support.avtransport.impl.AVTransportService;
 import org.jupnp.support.model.Channel;
+import org.jupnp.support.renderingcontrol.AbstractAudioRenderingControl;
+import org.jupnp.support.renderingcontrol.RenderingControlException;
 import org.jupnp.transport.impl.SOAPActionProcessorImpl;
 
-public class RenderingControlPresetTest {
+public class AvServiceSoapArgumentTest {
 
     @Test
     void selectPresetAcceptsNamesProvidedByTheRenderer() throws Exception {
@@ -56,19 +61,53 @@ public class RenderingControlPresetTest {
         assertEquals("Movie", renderer.selectedPreset);
     }
 
+    @Test
+    void getVolumeAcceptsTheStandardBottomChannel() throws Exception {
+        LocalService<TestRenderer> service = new AnnotationLocalServiceBinder().read(TestRenderer.class);
+        service.setManager(new DefaultServiceManager<>(service, TestRenderer.class));
+
+        ActionInvocation<LocalService> invocation = readAction(service, "GetVolume", "<Channel>B</Channel>");
+        service.getExecutor(invocation.getAction()).execute(invocation);
+
+        assertNull(invocation.getFailure());
+        assertEquals(new UnsignedIntegerTwoBytes(42), invocation.getOutput("CurrentVolume").getValue());
+    }
+
+    @Test
+    void unsupportedAvTransportModesKeepTheirActionSpecificFaultCodes() throws Exception {
+        LocalService<?> service = new AnnotationLocalServiceBinder().read(AVTransportService.class);
+        assertArgumentError(710, service, "Seek", "<Unit>Unknown</Unit><Target>0</Target>");
+        assertArgumentError(712, service, "SetPlayMode", "<NewPlayMode>Unknown</NewPlayMode>");
+        assertArgumentError(713, service, "SetRecordQualityMode",
+                "<NewRecordQualityMode>Unknown</NewRecordQualityMode>");
+        assertDoesNotThrow(() -> readAction(service, "Seek", "<Unit>TRACK_NR</Unit><Target>1</Target>"));
+    }
+
+    private static void assertArgumentError(int code, LocalService<?> service, String action, String arguments) {
+        UnsupportedDataException failure = assertThrows(UnsupportedDataException.class,
+                () -> readAction(service, action, arguments));
+        assertEquals(code, assertInstanceOf(ActionException.class, failure.getCause()).getErrorCode());
+    }
+
     private static ActionInvocation<LocalService> selectPreset(LocalService<?> service, String name) throws Exception {
+        ActionInvocation<LocalService> invocation = readAction(service, "SelectPreset",
+                "<PresetName>" + name + "</PresetName>");
+        service.getExecutor(invocation.getAction()).execute(invocation);
+        return invocation;
+    }
+
+    private static ActionInvocation<LocalService> readAction(LocalService<?> service, String action, String arguments)
+            throws Exception {
         StreamRequestMessage request = new StreamRequestMessage(UpnpRequest.Method.POST, URI.create("/control"));
         request.getHeaders().add(UpnpHeader.Type.SOAPACTION,
-                new SoapActionHeader(new SoapActionType(service.getServiceType(), "SelectPreset")));
+                new SoapActionHeader(new SoapActionType(service.getServiceType(), action)));
         request.setBody(UpnpMessage.BodyType.STRING,
-                "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body>"
-                        + "<u:SelectPreset xmlns:u=\"urn:schemas-upnp-org:service:RenderingControl:1\">"
-                        + "<InstanceID>0</InstanceID><PresetName>" + name + "</PresetName>"
-                        + "</u:SelectPreset></s:Body></s:Envelope>");
+                "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body>" + "<u:" + action
+                        + " xmlns:u=\"" + service.getServiceType() + "\">" + "<InstanceID>0</InstanceID>" + arguments
+                        + "</u:" + action + "></s:Body></s:Envelope>");
         IncomingActionRequestMessage incoming = new IncomingActionRequestMessage(request, service);
         ActionInvocation<LocalService> invocation = new ActionInvocation<>(incoming.getAction());
         new SOAPActionProcessorImpl().readBody(incoming, invocation);
-        service.getExecutor(incoming.getAction()).execute(invocation);
         return invocation;
     }
 
@@ -102,7 +141,7 @@ public class RenderingControlPresetTest {
 
         @Override
         public UnsignedIntegerTwoBytes getVolume(UnsignedIntegerFourBytes instance, String channel) {
-            return new UnsignedIntegerTwoBytes(0);
+            return new UnsignedIntegerTwoBytes("B".equals(channel) ? 42 : 0);
         }
 
         @Override
@@ -111,7 +150,7 @@ public class RenderingControlPresetTest {
 
         @Override
         protected Channel[] getCurrentChannels() {
-            return new Channel[] { Channel.Master };
+            return new Channel[] { Channel.Master, Channel.B };
         }
 
         @Override

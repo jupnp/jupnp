@@ -45,6 +45,7 @@ public class ActionArgument<S extends Service> implements Validatable {
     private final String relatedStateVariableName;
     private final Direction direction;
     private final boolean returnValue; // TODO: What is this stuff good for anyway?
+    private final int allowedValueErrorCode;
 
     // Package mutable state
     private Action<S> action;
@@ -63,11 +64,17 @@ public class ActionArgument<S extends Service> implements Validatable {
 
     public ActionArgument(String name, String[] aliases, String relatedStateVariableName, Direction direction,
             boolean returnValue) {
+        this(name, aliases, relatedStateVariableName, direction, returnValue, 0);
+    }
+
+    public ActionArgument(String name, String[] aliases, String relatedStateVariableName, Direction direction,
+            boolean returnValue, int allowedValueErrorCode) {
         this.name = name;
         this.aliases = aliases;
         this.relatedStateVariableName = relatedStateVariableName;
         this.direction = direction;
         this.returnValue = returnValue;
+        this.allowedValueErrorCode = allowedValueErrorCode;
     }
 
     public String getName() {
@@ -100,6 +107,10 @@ public class ActionArgument<S extends Service> implements Validatable {
 
     public boolean isReturnValue() {
         return returnValue;
+    }
+
+    public int getAllowedValueErrorCode() {
+        return allowedValueErrorCode;
     }
 
     public Action<S> getAction() {
@@ -146,7 +157,7 @@ public class ActionArgument<S extends Service> implements Validatable {
 
     public ActionArgument<S> deepCopy() {
         return new ActionArgument<>(getName(), getAliases(), getRelatedStateVariableName(), getDirection(),
-                isReturnValue());
+                isReturnValue(), getAllowedValueErrorCode());
     }
 
     @Override

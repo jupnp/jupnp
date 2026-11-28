@@ -261,7 +261,7 @@ public abstract class AbstractAVTransportService implements LastChangeDelegator 
 
     @UpnpAction
     public abstract void seek(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
-            @UpnpInputArgument(name = "Unit", stateVariable = "A_ARG_TYPE_SeekMode") String unit,
+            @UpnpInputArgument(name = "Unit", stateVariable = "A_ARG_TYPE_SeekMode", allowedValueErrorCode = 710) String unit,
             @UpnpInputArgument(name = "Target", stateVariable = "A_ARG_TYPE_SeekTarget") String target)
             throws AVTransportException;
 
@@ -275,13 +275,13 @@ public abstract class AbstractAVTransportService implements LastChangeDelegator 
 
     @UpnpAction
     public abstract void setPlayMode(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
-            @UpnpInputArgument(name = "NewPlayMode", stateVariable = "CurrentPlayMode") String newPlayMode)
+            @UpnpInputArgument(name = "NewPlayMode", stateVariable = "CurrentPlayMode", allowedValueErrorCode = 712) String newPlayMode)
             throws AVTransportException;
 
     @UpnpAction
     public abstract void setRecordQualityMode(
             @UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
-            @UpnpInputArgument(name = "NewRecordQualityMode", stateVariable = "CurrentRecordQualityMode") String newRecordQualityMode)
+            @UpnpInputArgument(name = "NewRecordQualityMode", stateVariable = "CurrentRecordQualityMode", allowedValueErrorCode = 713) String newRecordQualityMode)
             throws AVTransportException;
 
     @UpnpAction(name = "GetCurrentTransportActions", out = @UpnpOutputArgument(name = "Actions", stateVariable = "CurrentTransportActions"))

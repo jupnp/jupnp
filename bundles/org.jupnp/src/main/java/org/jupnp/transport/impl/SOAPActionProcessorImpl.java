@@ -352,8 +352,13 @@ public class SOAPActionProcessorImpl extends PooledXmlProcessor implements SOAPA
             ActionArgument argument = inputValue.getArgument();
             StateVariable stateVariable = argument.getAction().getService().getRelatedStateVariable(argument);
             if (!stateVariable.getTypeDetails().isAllowedValue(inputValue.getValue())) {
-                throw new ActionException(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE, "Value of '" + argument.getName()
-                        + "' is not allowed for state variable '" + stateVariable.getName() + "'");
+                String message = "Value of '" + argument.getName() + "' is not allowed for state variable '"
+                        + stateVariable.getName() + "'";
+                int errorCode = argument.getAllowedValueErrorCode();
+                if (errorCode != 0) {
+                    throw new ActionException(errorCode, message);
+                }
+                throw new ActionException(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE, message);
             }
         }
     }
