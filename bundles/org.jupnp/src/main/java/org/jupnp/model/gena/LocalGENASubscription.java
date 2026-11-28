@@ -27,6 +27,7 @@ import java.util.UUID;
 
 import org.jupnp.internal.compat.java.beans.PropertyChangeEvent;
 import org.jupnp.internal.compat.java.beans.PropertyChangeListener;
+import org.jupnp.internal.compat.java.beans.PropertyChangeSupport;
 import org.jupnp.model.ServiceManager;
 import org.jupnp.model.UserConstants;
 import org.jupnp.model.message.header.SubscriptionIdHeader;
@@ -58,6 +59,9 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
     private final Logger logger = LoggerFactory.getLogger(LocalGENASubscription.class);
 
     final List<URL> callbackURLs;
+
+    private PropertyChangeSupport listenerSupport;
+    private boolean terminated;
 
     // Moderation history
     final Map<String, Long> lastSentTimestamp = new HashMap<>();
@@ -106,22 +110,40 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
     /**
      * Adds a property change listener on the {@link org.jupnp.model.ServiceManager}.
      */
-    public synchronized void registerOnService() {
-        getService().getManager().getPropertyChangeSupport().addPropertyChangeListener(this);
+    public void registerOnService() {
+        PropertyChangeSupport support = getService().getManager().getPropertyChangeSupport();
+        synchronized (this) {
+            if (!terminated && listenerSupport == null) {
+                support.addPropertyChangeListener(this);
+                listenerSupport = support;
+            }
+        }
     }
 
     public synchronized void establish() {
-        established();
+        if (!terminated) {
+            established();
+        }
     }
 
     /**
      * Removes a property change listener on the {@link org.jupnp.model.ServiceManager}.
      */
-    public synchronized void end(CancelReason reason) {
-        try {
-            getService().getManager().getPropertyChangeSupport().removePropertyChangeListener(this);
-        } catch (Exception e) {
-            logger.warn("Removal of local service property change listener failed", e);
+    public void end(CancelReason reason) {
+        synchronized (this) {
+            if (terminated) {
+                return;
+            }
+            terminated = true;
+            if (listenerSupport != null) {
+                try {
+                    listenerSupport.removePropertyChangeListener(this);
+                } catch (Exception e) {
+                    logger.warn("Removal of local service property change listener failed", e);
+                } finally {
+                    listenerSupport = null;
+                }
+            }
         }
         ended(reason);
     }
@@ -132,7 +154,7 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
      */
     @Override
     public synchronized void propertyChange(PropertyChangeEvent e) {
-        if (!e.getPropertyName().equals(ServiceManager.EVENTED_STATE_VARIABLES)) {
+        if (terminated || !e.getPropertyName().equals(ServiceManager.EVENTED_STATE_VARIABLES)) {
             return;
         }
 

@@ -199,7 +199,9 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
             while (it.hasNext()) {
                 final RegistryItem<String, RemoteGENASubscription> outgoingSubscription = it.next();
 
-                UDN subscriptionForUDN = outgoingSubscription.getItem().getService().getDevice().getIdentity().getUdn();
+                // The service might belong to an embedded device, the registered device is always its root
+                UDN subscriptionForUDN = outgoingSubscription.getItem().getService().getDevice().getRoot().getIdentity()
+                        .getUdn();
 
                 if (subscriptionForUDN.equals(registeredDevice.getIdentity().getUdn())) {
                     logger.trace("Removing outgoing subscription: {}", outgoingSubscription.getKey());
