@@ -16,17 +16,21 @@
 package org.jupnp.model.gena;
 
 import java.net.URL;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import org.jupnp.internal.compat.java.beans.PropertyChangeEvent;
 import org.jupnp.internal.compat.java.beans.PropertyChangeListener;
+import org.jupnp.internal.compat.java.beans.PropertyChangeSupport;
 import org.jupnp.model.ServiceManager;
 import org.jupnp.model.UserConstants;
 import org.jupnp.model.message.header.SubscriptionIdHeader;
@@ -59,9 +63,14 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
 
     final List<URL> callbackURLs;
 
+    private PropertyChangeSupport listenerSupport;
+    private boolean terminated;
+
     // Moderation history
     final Map<String, Long> lastSentTimestamp = new HashMap<>();
     final Map<String, Long> lastSentNumericValue = new HashMap<>();
+
+    private Deque<Collection<StateVariableValue>> initialEventChanges;
 
     protected LocalGENASubscription(LocalService service, List<URL> callbackURLs) throws Exception {
         super(service);
@@ -75,7 +84,7 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
         setSubscriptionDuration(requestedDurationSeconds);
 
         logger.trace("Reading initial state of local service at subscription time");
-        long currentTime = new Date().getTime();
+        long currentTime = System.currentTimeMillis();
         this.currentValues.clear();
 
         Collection<StateVariableValue> values = getService().getManager().getCurrentState();
@@ -106,22 +115,40 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
     /**
      * Adds a property change listener on the {@link org.jupnp.model.ServiceManager}.
      */
-    public synchronized void registerOnService() {
-        getService().getManager().getPropertyChangeSupport().addPropertyChangeListener(this);
+    public void registerOnService() {
+        PropertyChangeSupport support = getService().getManager().getPropertyChangeSupport();
+        synchronized (this) {
+            if (!terminated && listenerSupport == null) {
+                support.addPropertyChangeListener(this);
+                listenerSupport = support;
+            }
+        }
     }
 
     public synchronized void establish() {
-        established();
+        if (!terminated) {
+            established();
+        }
     }
 
     /**
      * Removes a property change listener on the {@link org.jupnp.model.ServiceManager}.
      */
-    public synchronized void end(CancelReason reason) {
-        try {
-            getService().getManager().getPropertyChangeSupport().removePropertyChangeListener(this);
-        } catch (Exception e) {
-            logger.warn("Removal of local service property change listener failed", e);
+    public void end(CancelReason reason) {
+        synchronized (this) {
+            if (terminated) {
+                return;
+            }
+            terminated = true;
+            if (listenerSupport != null) {
+                try {
+                    listenerSupport.removePropertyChangeListener(this);
+                } catch (Exception e) {
+                    logger.warn("Removal of local service property change listener failed", e);
+                } finally {
+                    listenerSupport = null;
+                }
+            }
         }
         ended(reason);
     }
@@ -132,26 +159,36 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
      */
     @Override
     public synchronized void propertyChange(PropertyChangeEvent e) {
-        if (!e.getPropertyName().equals(ServiceManager.EVENTED_STATE_VARIABLES)) {
+        if (terminated || !e.getPropertyName().equals(ServiceManager.EVENTED_STATE_VARIABLES)) {
             return;
         }
 
         logger.trace("Eventing triggered, getting state for subscription: {}", getSubscriptionId());
 
-        long currentTime = new Date().getTime();
-
         Collection<StateVariableValue> newValues = (Collection) e.getNewValue();
-        Set<String> excludedVariables = moderateStateVariables(currentTime, newValues);
+        List<StateVariableValue> changes = selectChanges(newValues);
+        if (initialEventChanges != null) {
+            if (!changes.isEmpty()) {
+                initialEventChanges.addLast(changes);
+            }
+        } else {
+            setCurrentValues(changes);
+            if (!changes.isEmpty()) {
+                eventReceived();
+            }
+        }
+    }
 
-        currentValues.clear();
+    private List<StateVariableValue> selectChanges(Collection<StateVariableValue> newValues) {
+        long currentTime = System.currentTimeMillis();
+        Set<String> excludedVariables = moderateStateVariables(currentTime, newValues);
+        List<StateVariableValue> changes = new ArrayList<>();
         for (StateVariableValue newValue : newValues) {
             String name = newValue.getStateVariable().getName();
             if (!excludedVariables.contains(name)) {
-                logger.trace("Adding state variable value to current values of event: {} = {}",
-                        newValue.getStateVariable(), newValue);
-                currentValues.put(newValue.getStateVariable().getName(), newValue);
-
-                // Preserve "last sent" state for future moderation
+                changes.add(newValue);
+                // Apply moderation when the service changes. Time spent waiting for sequence zero
+                // or previous batches must not change which deltas qualify for notification.
                 lastSentTimestamp.put(name, currentTime);
                 if (newValue.getStateVariable().isModeratedNumericType()) {
                     lastSentNumericValue.put(name, Long.valueOf(newValue.toString()));
@@ -159,14 +196,13 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
             }
         }
 
-        if (!currentValues.isEmpty()) {
-            logger.trace("Propagating new state variable values to subscription: {}", this);
-            // TODO: I'm not happy with this design, this dispatches to a separate thread which _then_
-            // is supposed to lock and read the values off this instance. That obviously doesn't work
-            // so it's currently a hack in SendingEvent.java
-            eventReceived();
-        } else {
-            logger.trace("No state variable values for event (all moderated out?), not triggering event");
+        return changes;
+    }
+
+    private void setCurrentValues(Collection<StateVariableValue> changes) {
+        currentValues.clear();
+        for (StateVariableValue value : changes) {
+            currentValues.put(value.getStateVariable().getName(), value);
         }
     }
 
@@ -230,6 +266,47 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
 
         }
         return excludedVariables;
+    }
+
+    /**
+     * Listen for changes while retaining the original values until the initial notification is sent.
+     */
+    public void registerForInitialEvent() {
+        synchronized (this) {
+            if (terminated) {
+                return;
+            }
+            initialEventChanges = new ArrayDeque<>();
+        }
+        registerOnService();
+    }
+
+    /**
+     * Drain the batches queued behind the initial event on the same sender. Prepare each notification
+     * under the subscription monitor and release it before sending.
+     */
+    public void finishInitialEvent(Supplier<? extends Runnable> prepareEvent) {
+        try {
+            Runnable event;
+            while ((event = prepareNextInitialEventChange(prepareEvent)) != null) {
+                event.run();
+            }
+        } finally {
+            clearInitialEventChanges();
+        }
+    }
+
+    public synchronized void clearInitialEventChanges() {
+        initialEventChanges = null;
+    }
+
+    private synchronized Runnable prepareNextInitialEventChange(Supplier<? extends Runnable> prepareEvent) {
+        if (!terminated && initialEventChanges != null && !initialEventChanges.isEmpty()) {
+            setCurrentValues(initialEventChanges.removeFirst());
+            return prepareEvent.get();
+        }
+        initialEventChanges = null;
+        return null;
     }
 
     public synchronized void incrementSequence() {

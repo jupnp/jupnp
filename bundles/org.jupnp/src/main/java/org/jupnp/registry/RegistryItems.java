@@ -141,12 +141,12 @@ abstract class RegistryItems<D extends Device, S extends GENASubscription> {
         return deviceItems.contains(new RegistryItem<UDN, D>(udn));
     }
 
-    void addSubscription(S subscription) {
+    boolean addSubscription(S subscription) {
 
         RegistryItem<String, S> subscriptionItem = new RegistryItem<>(subscription.getSubscriptionId(), subscription,
                 subscription.getActualDurationSeconds());
 
-        subscriptionItems.add(subscriptionItem);
+        return subscriptionItems.add(subscriptionItem);
     }
 
     boolean updateSubscription(S subscription) {
@@ -158,6 +158,12 @@ abstract class RegistryItems<D extends Device, S extends GENASubscription> {
     }
 
     boolean removeSubscription(S subscription) {
+        // The identifier of an outgoing subscription is chosen by the remote host and not necessarily unique: only
+        // remove (or replace, see updateSubscription) the item of this subscription, never the item of another
+        // subscription that was given the same identifier
+        if (getSubscription(subscription.getSubscriptionId()) != subscription) {
+            return false;
+        }
         return subscriptionItems.remove(new RegistryItem<String, S>(subscription.getSubscriptionId()));
     }
 

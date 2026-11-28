@@ -40,7 +40,8 @@ import org.slf4j.LoggerFactory;
  * a <code>null</code> argument value. Note that this is also the response if the subscription has
  * to be aborted early, when no local stream server for callback URL creation is available. This is
  * the case when the local network transport layer is switched off, subscriptions will fail
- * immediately with no response.
+ * immediately with no response. It is also the response if the device was removed from the registry
+ * while the subscription request was outstanding.
  * </p>
  *
  * @author Christian Bauer
@@ -107,9 +108,13 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
                 subscription.setSubscriptionId(responseMessage.getSubscriptionId());
                 subscription.setActualSubscriptionDurationSeconds(responseMessage.getSubscriptionDurationSeconds());
 
-                getUpnpService().getRegistry().addRemoteSubscription(subscription);
-
-                getUpnpService().getConfiguration().getRegistryListenerExecutor().execute(subscription::establish);
+                if (getUpnpService().getRegistry().addRemoteSubscriptionIfDevicePresent(subscription)) {
+                    getUpnpService().getConfiguration().getRegistryListenerExecutor().execute(subscription::establish);
+                } else {
+                    logger.trace("Could not register subscription for device: {}",
+                            subscription.getService().getDevice());
+                    onSubscriptionFailure();
+                }
 
             }
             return responseMessage;

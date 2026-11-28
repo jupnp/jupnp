@@ -81,6 +81,8 @@ public abstract class StreamServerClientTest {
                 lastExecutedServerProtocol = new CheckAliveResponse(requestMessage);
             } else if (path.endsWith(CheckAliveLongResponse.PATH)) {
                 lastExecutedServerProtocol = new CheckAliveLongResponse(requestMessage);
+            } else if (path.endsWith(RedirectResponse.PATH)) {
+                lastExecutedServerProtocol = new RedirectResponse(requestMessage);
             } else {
                 throw new ProtocolCreationException("Invalid test path: " + path);
             }
@@ -238,6 +240,20 @@ public abstract class StreamServerClientTest {
     @ValueSource(strings = { "", "http:///", "http:///descriptor.xml", "http://:8081/descriptor.xml" })
     void returnNullForInvalidURI(String uri) throws Exception {
         assertNull(client.sendRequest(createRequestMessage(new URI(uri))));
+    }
+
+    @Test
+    void notifyIsNotRedirected() throws Exception {
+        // A GENA event must only reach the callback URL validated at subscription time, so the
+        // redirect answered by the callback must be returned to the caller instead of being followed
+        StreamRequestMessage requestMessage = new StreamRequestMessage(UpnpRequest.Method.NOTIFY,
+                URI.create("http://" + TEST_HOST + ":" + TEST_PORT + RedirectResponse.PATH), "<e:propertyset/>");
+        StreamResponseMessage responseMessage = client.sendRequest(requestMessage);
+        assertNotNull(responseMessage, "responseMessage");
+        assertNotNull(responseMessage.getOperation(), "responseMessage.getOperation()");
+        assertEquals(responseMessage.getOperation().getStatusCode(), 307);
+        assertTrue(lastExecutedServerProtocol instanceof RedirectResponse);
+        assertTrue(lastExecutedServerProtocol.isComplete);
     }
 
     protected StreamRequestMessage createRequestMessage(String path) {
@@ -404,6 +420,25 @@ public abstract class StreamServerClientTest {
             }
             isComplete = true;
             return new StreamResponseMessage(UpnpResponse.Status.OK);
+        }
+    }
+
+    public static class RedirectResponse extends TestProtocol {
+
+        public static final String PATH = "/redirect";
+
+        public RedirectResponse(StreamRequestMessage inputMessage) {
+            super(inputMessage);
+        }
+
+        @Override
+        protected StreamResponseMessage executeSync() {
+            isComplete = true;
+            StreamResponseMessage responseMessage = new StreamResponseMessage(
+                    new UpnpResponse(307, "Temporary Redirect"));
+            responseMessage.getHeaders().add("Location",
+                    "http://" + TEST_HOST + ":" + TEST_PORT + OKEmptyResponse.PATH);
+            return responseMessage;
         }
     }
 }
