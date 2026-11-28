@@ -157,7 +157,9 @@ public abstract class SubscriptionCallback implements Runnable {
                 @Override
                 public void ended(CancelReason reason) {
                     synchronized (SubscriptionCallback.this) {
-                        SubscriptionCallback.this.setSubscription(null);
+                        if (SubscriptionCallback.this.getSubscription() == this) {
+                            SubscriptionCallback.this.setSubscription(null);
+                        }
                         SubscriptionCallback.this.ended(this, reason, null);
                     }
                 }
@@ -178,6 +180,9 @@ public abstract class SubscriptionCallback implements Runnable {
 
             logger.trace("Notifying subscription callback of local subscription availability");
             localSubscription.establish();
+            if (getSubscription() != localSubscription) {
+                return;
+            }
 
             logger.trace("Simulating first initial event for local subscription callback, sequence: {}",
                     localSubscription.getCurrentSequence());
@@ -255,14 +260,12 @@ public abstract class SubscriptionCallback implements Runnable {
         protocol.run();
     }
 
-    public synchronized void end() {
-        if (subscription == null) {
-            return;
-        }
-        if (subscription instanceof LocalGENASubscription) {
-            endLocalSubscription((LocalGENASubscription) subscription);
-        } else if (subscription instanceof RemoteGENASubscription) {
-            endRemoteSubscription((RemoteGENASubscription) subscription);
+    public void end() {
+        GENASubscription activeSubscription = getSubscription();
+        if (activeSubscription instanceof LocalGENASubscription) {
+            endLocalSubscription((LocalGENASubscription) activeSubscription);
+        } else if (activeSubscription instanceof RemoteGENASubscription) {
+            endRemoteSubscription((RemoteGENASubscription) activeSubscription);
         }
     }
 

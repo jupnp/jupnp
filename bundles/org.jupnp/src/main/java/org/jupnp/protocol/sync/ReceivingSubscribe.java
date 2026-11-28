@@ -19,6 +19,7 @@ import java.net.InetAddress;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.concurrent.RejectedExecutionException;
 
 import org.jupnp.UpnpService;
 import org.jupnp.model.gena.CancelReason;
@@ -60,6 +61,9 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
     private final Logger logger = LoggerFactory.getLogger(ReceivingSubscribe.class);
 
     protected LocalGENASubscription subscription;
+
+    // Only the request that created the subscription establishes or discards it, a renewal never does
+    private boolean newSubscription;
 
     public ReceivingSubscribe(UpnpService upnpService, StreamRequestMessage inputMessage) {
         super(upnpService, inputMessage);
@@ -108,6 +112,7 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         if (requestMessage.getSubscriptionId() != null) {
             return processRenewal(resource.getModel(), requestMessage);
         } else if (requestMessage.hasNotificationHeader() && requestMessage.getCallbackURLs() != null) {
+            newSubscription = true;
             return processNewSubscription(resource.getModel(), requestMessage);
         } else {
             logger.trace("No subscription ID, no NT or Callback, neither subscription or renewal: {}",
@@ -193,23 +198,53 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         if (subscription == null) {
             return; // Preconditions failed very early on
         }
-        if (responseMessage != null && !responseMessage.getOperation().isFailed()
-                && subscription.getCurrentSequence().getValue() == 0) { // Note that renewals should not have 0
+        if (!newSubscription) {
+            // A renewal, its subscription is established already. The sequence can't tell us, it is still 0
+            // until the initial event has been prepared.
+            return;
+        }
+        if (responseMessage != null && !responseMessage.getOperation().isFailed()) {
 
-            // This is a minor concurrency issue: If we now register on the service and henceforth send a new
-            // event message whenever the state of the service changes, there is still a chance that the initial
-            // event message arrives later than the first on-change event message. Shouldn't be a problem as the
-            // subscriber is supposed to figure out what to do with out-of-sequence messages. I would be
-            // surprised though if actual implementations won't crash!
-            logger.trace("Establishing subscription");
-            subscription.registerOnService();
-            subscription.establish();
+            // Keep sequence zero and its snapshot separate from state changes while the initial event is sent.
+            LocalGENASubscription pending = subscription;
+            pending.registerForInitialEvent();
+
+            // The subscription has been in the registry, with its duration running, since the request was
+            // processed, and how long the delivery of the response takes is up to the subscriber. If it expired,
+            // was unsubscribed or removed with its device in the meantime, whoever removed it has ended it already
+            // and nobody else is going to remove the listener we have just registered. Checking after registering
+            // leaves no gap: a later removal finds the listener in end().
+            if (getUpnpService().getRegistry().getLocalSubscription(subscription.getSubscriptionId()) != subscription) {
+                logger.trace("Subscription was removed before its response was sent, not establishing: {}",
+                        subscription);
+                subscription.end(null);
+                return;
+            }
+
+            SendingEvent initialEvent = getUpnpService().getProtocolFactory().createSendingEvent(pending);
+            pending.establish();
 
             logger.trace("Response to subscription sent successfully, now sending initial event asynchronously");
-            getUpnpService().getConfiguration().getAsyncProtocolExecutor()
-                    .execute(getUpnpService().getProtocolFactory().createSendingEvent(subscription));
+            try {
+                getUpnpService().getConfiguration().executeInitialEvent(() -> {
+                    try {
+                        initialEvent.run();
+                    } finally {
+                        pending.finishInitialEvent(
+                                () -> getUpnpService().getProtocolFactory().createSendingEvent(pending));
+                    }
+                });
+            } catch (RejectedExecutionException e) {
+                logger.debug("Initial event could not be scheduled, removing subscription: {}", pending, e);
+                getUpnpService().getRegistry().removeLocalSubscription(pending);
+                try {
+                    pending.end(null);
+                } finally {
+                    pending.clearInitialEventChanges();
+                }
+            }
 
-        } else if (subscription.getCurrentSequence().getValue() == 0) {
+        } else {
             logger.trace("Subscription request's response aborted, not sending initial event");
             if (responseMessage == null) {
                 logger.trace("Reason: No response at all from subscriber");
@@ -225,6 +260,9 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
     public void responseException(Throwable t) {
         if (subscription == null) {
             return; // Nothing to do, we didn't get that far
+        }
+        if (!newSubscription) {
+            return; // A renewal, the established subscription stays until it expires or is unsubscribed
         }
         logger.trace("Response could not be send to subscriber, removing local GENA subscription: {}", subscription);
         getUpnpService().getRegistry().removeLocalSubscription(subscription);
