@@ -24,6 +24,9 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 
 import org.jupnp.model.UnsupportedDataException;
+import org.jupnp.model.message.IncomingDatagramMessage;
+import org.jupnp.model.message.UpnpRequest;
+import org.jupnp.model.message.discovery.IncomingSearchRequest;
 import org.jupnp.transport.Router;
 import org.jupnp.transport.spi.DatagramProcessor;
 import org.jupnp.transport.spi.InitializationException;
@@ -128,7 +131,8 @@ public class MulticastReceiverImpl implements MulticastReceiver<MulticastReceive
                         datagram.getAddress().getHostAddress(), datagram.getPort(), multicastInterface.getDisplayName(),
                         receivedOnLocalAddress.getHostAddress());
 
-                router.received(datagramProcessor.read(receivedOnLocalAddress, datagram));
+                IncomingDatagramMessage<?> message = datagramProcessor.read(receivedOnLocalAddress, datagram);
+                router.received(selectSearchAddress(message));
 
             } catch (SocketException e) {
                 logger.debug("Socket closed");
@@ -147,5 +151,25 @@ public class MulticastReceiverImpl implements MulticastReceiver<MulticastReceive
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private IncomingDatagramMessage<?> selectSearchAddress(IncomingDatagramMessage<?> message) {
+        if (!(message.getOperation() instanceof UpnpRequest)
+                || ((UpnpRequest) message.getOperation()).getMethod() != UpnpRequest.Method.MSEARCH) {
+            return message;
+        }
+
+        // A wildcard socket's multicast membership identifies the interface only for multicast
+        // traffic. A unicast M-SEARCH indicates its intended target in HOST.
+        IncomingSearchRequest search = new IncomingSearchRequest((IncomingDatagramMessage<UpnpRequest>) message);
+        String target = search.getUnicastHost();
+        if (target != null) {
+            InetAddress address = networkAddressFactory.getUnicastSearchAddress(target, search.getSourceAddress());
+            if (address != null && !address.equals(search.getLocalAddress())) {
+                return new IncomingSearchRequest(search, address);
+            }
+        }
+        return message;
     }
 }

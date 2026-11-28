@@ -19,6 +19,7 @@ import java.net.BindException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -258,6 +259,95 @@ public class RouterImpl implements Router {
         }
     }
 
+    @Override
+    public List<NetworkAddress> getSearchResponseStreamServers(InetAddress receivedOn, InetAddress controlPoint)
+            throws RouterException {
+        InetAddress address;
+        lock(readLock);
+        try {
+            if (!enabled) {
+                return List.of();
+            }
+            address = selectUnicastAddress(receivedOn, controlPoint, true);
+            if (address == null) {
+                logger.debug("No bound stream server on the receiving network for {}", receivedOn);
+                return List.of();
+            }
+        } finally {
+            unlock(readLock);
+        }
+
+        // The advertised endpoint can be customized independently of the local UDP send socket.
+        List<NetworkAddress> endpoints = getActiveStreamServers(address);
+        return endpoints.isEmpty() ? List.of() : List.of(endpoints.get(0));
+    }
+
+    private InetAddress selectUnicastAddress(InetAddress preferred, InetAddress destination,
+            boolean requireStreamServer) {
+        if (datagramIOs.containsKey(preferred) && (!requireStreamServer || streamServers.containsKey(preferred))) {
+            return preferred;
+        }
+
+        NetworkInterface receivingInterface = getNetworkInterface(preferred);
+        InetAddress best = null;
+        int bestScore = -1;
+        for (InetAddress candidate : datagramIOs.keySet()) {
+            if (requireStreamServer && !streamServers.containsKey(candidate)) {
+                continue;
+            }
+            if (candidate.getAddress().length != destination.getAddress().length) {
+                continue;
+            }
+            Short prefix = networkAddressFactory.getAddressNetworkPrefixLength(candidate);
+            boolean sameNetwork = prefix != null && isInSubnet(preferred, candidate, prefix);
+            if (receivingInterface != null ? !receivingInterface.equals(getNetworkInterface(candidate))
+                    : preferred != null && !sameNetwork) {
+                continue;
+            }
+            boolean reachesDestination = prefix != null && isInSubnet(destination, candidate, prefix);
+            if (requireStreamServer && preferred == null && !reachesDestination) {
+                continue;
+            }
+            int score = reachesDestination ? prefix + 2 : sameNetwork ? 1 : 0;
+            if (score > bestScore) {
+                best = candidate;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    private static NetworkInterface getNetworkInterface(InetAddress address) {
+        if (address != null) {
+            try {
+                return NetworkInterface.getByInetAddress(address);
+            } catch (SocketException e) {
+                // Fall back to comparing the configured network prefixes.
+            }
+        }
+        return null;
+    }
+
+    private static boolean isInSubnet(InetAddress address, InetAddress candidate, int prefix) {
+        if (address == null) {
+            return false;
+        }
+        byte[] first = address.getAddress();
+        byte[] second = candidate.getAddress();
+        if (first.length != second.length || prefix <= 0 || prefix > first.length * Byte.SIZE) {
+            return false;
+        }
+        int wholeBytes = prefix / Byte.SIZE;
+        int remainingBits = prefix % Byte.SIZE;
+        for (int i = 0; i < wholeBytes; i++) {
+            if (first[i] != second[i]) {
+                return false;
+            }
+        }
+        return remainingBits == 0
+                || (((first[wholeBytes] ^ second[wholeBytes]) & 0xFF) >>> (Byte.SIZE - remainingBits)) == 0;
+    }
+
     /**
      * Obtains the asynchronous protocol {@code Executor} and runs the protocol created
      * by the {@link org.jupnp.protocol.ProtocolFactory} for the given message.
@@ -306,7 +396,14 @@ public class RouterImpl implements Router {
     }
 
     /**
-     * Sends the UDP datagram on all bound {@link org.jupnp.transport.spi.DatagramIO}s.
+     * Sends the UDP datagram on all bound {@link org.jupnp.transport.spi.DatagramIO}s if it is addressed to a
+     * multicast group.
+     * <p>
+     * A unicast datagram (e.g. a search response) is sent only once, otherwise its destination would receive one
+     * copy for each bound address. It is sent with the <code>DatagramIO</code> bound to the
+     * {@link OutgoingDatagramMessage#getLocalAddress() local address} of the message. If that address is not
+     * bound, look for a bound address on the receiving network.
+     * </p>
      *
      * @param msg The UDP datagram message to send.
      */
@@ -315,8 +412,18 @@ public class RouterImpl implements Router {
         lock(readLock);
         try {
             if (enabled) {
-                for (DatagramIO datagramIO : datagramIOs.values()) {
-                    datagramIO.send(msg);
+                if (msg.getDestinationAddress().isMulticastAddress()) {
+                    for (DatagramIO datagramIO : datagramIOs.values()) {
+                        datagramIO.send(msg);
+                    }
+                } else if (!datagramIOs.isEmpty()) {
+                    InetAddress address = selectUnicastAddress(msg.getLocalAddress(), msg.getDestinationAddress(),
+                            false);
+                    if (address != null) {
+                        datagramIOs.get(address).send(msg);
+                    } else {
+                        logger.debug("No bound datagram socket on the receiving network for {}", msg.getLocalAddress());
+                    }
                 }
             } else {
                 logger.debug("Router disabled, not sending datagram: {}", msg);

@@ -106,6 +106,14 @@ public interface Router {
     List<NetworkAddress> getActiveStreamServers(InetAddress preferredAddress) throws RouterException;
 
     /**
+     * Selects a stream server reachable on the network that received the search.
+     */
+    default List<NetworkAddress> getSearchResponseStreamServers(InetAddress receivedOn, InetAddress controlPoint)
+            throws RouterException {
+        return getActiveStreamServers(receivedOn);
+    }
+
+    /**
      * <p>
      * This method is called internally by the transport layer when a datagram, either unicast or
      * multicast, has been received. An implementation of this interface has to handle the received

@@ -48,10 +48,14 @@ public class IncomingDatagramMessage<O extends UpnpOperation> extends UpnpMessag
     }
 
     protected IncomingDatagramMessage(IncomingDatagramMessage<O> source) {
+        this(source, source.getLocalAddress());
+    }
+
+    protected IncomingDatagramMessage(IncomingDatagramMessage<O> source, InetAddress localAddress) {
         super(source);
         this.sourceAddress = source.getSourceAddress();
         this.sourcePort = source.getSourcePort();
-        this.localAddress = source.getLocalAddress();
+        this.localAddress = localAddress;
     }
 
     public InetAddress getSourceAddress() {

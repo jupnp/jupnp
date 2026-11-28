@@ -99,6 +99,7 @@ public interface NetworkAddressFactory {
      * able to communicate with the sender using UDP unicast and we need to tell the sender
      * how we are reachable with TCP requests. We need a local address that is in the same
      * subnet as the senders address, that is reachable from the senders point of view.
+     * The returned address must belong to the interface that received the datagram.
      *
      * @param networkInterface The network interface to examine.
      * @param isIPv6 True if the given remote address is an IPv6 address.
@@ -108,6 +109,17 @@ public interface NetworkAddressFactory {
      */
     InetAddress getLocalAddress(NetworkInterface networkInterface, boolean isIPv6, InetAddress remoteAddress)
             throws IllegalStateException;
+
+    /**
+     * Finds a bound local address for a unicast search received on a wildcard SSDP socket.
+     *
+     * @param targetHost Host declared by the search request.
+     * @param remoteAddress Source address of the received datagram.
+     * @return A bound address, or <code>null</code> to keep the receiving interface's address.
+     */
+    default InetAddress getUnicastSearchAddress(String targetHost, InetAddress remoteAddress) {
+        return null;
+    }
 
     /**
      * For debugging, logs all "usable" network interface(s) details with INFO level.
