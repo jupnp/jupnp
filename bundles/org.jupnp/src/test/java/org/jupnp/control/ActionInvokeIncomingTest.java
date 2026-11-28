@@ -44,10 +44,18 @@ import org.jupnp.model.meta.LocalDevice;
 import org.jupnp.model.meta.LocalService;
 import org.jupnp.model.meta.QueryStateVariableAction;
 import org.jupnp.model.meta.Service;
+import org.jupnp.model.meta.StateVariableTypeDetails;
+import org.jupnp.model.types.Datatype;
 import org.jupnp.model.types.ErrorCode;
 import org.jupnp.model.types.SoapActionType;
 import org.jupnp.protocol.sync.ReceivingAction;
 import org.jupnp.util.MimeType;
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 /**
  * @author Christian Bauer
@@ -248,6 +256,106 @@ class ActionInvokeIncomingTest {
         upnpService.getConfiguration().getSoapActionProcessor().readBody(responseMessage, responseInvocation);
 
         assertEquals(0, responseInvocation.getOutput().length);
+    }
+
+    @Test
+    void incomingRemoteCallArgumentValueOutOfRange() throws Exception {
+        ActionException ex = incomingRemoteCallRestricted("SetLoadLevelTarget", "NewLoadLevelTarget", "250", 0);
+        assertNotNull(ex);
+        assertEquals(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE.getCode(), ex.getErrorCode());
+
+        ex = incomingRemoteCallRestricted("SetLoadLevelTarget", "NewLoadLevelTarget", "-7", 0);
+        assertNotNull(ex);
+        assertEquals(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE.getCode(), ex.getErrorCode());
+
+        assertNull(incomingRemoteCallRestricted("SetLoadLevelTarget", "NewLoadLevelTarget", "100", 100));
+    }
+
+    @Test
+    void incomingRemoteCallArgumentValueNotInAllowedValues() throws Exception {
+        ActionException ex = incomingRemoteCallRestricted("SetMode", "NewMode", "Dangerous", "Normal");
+        assertNotNull(ex);
+        assertEquals(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE.getCode(), ex.getErrorCode());
+
+        ex = incomingRemoteCallRestricted("SetMode", "NewMode", "", "Normal");
+        assertNotNull(ex);
+        assertEquals(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE.getCode(), ex.getErrorCode());
+    }
+
+    @Test
+    void incomingRemoteCallAcceptsTextAndCdataForAllowedValue() throws Exception {
+        assertNull(incomingRemoteCallRestricted("SetMode", "NewMode", "Inverted", "Inverted"));
+        assertNull(incomingRemoteCallRestricted("SetMode", "NewMode", "<![CDATA[Inverted]]>", "Inverted"));
+        assertNull(incomingRemoteCallRestricted("SetMode", "NewMode", "In<![CDATA[vert]]>ed", "Inverted"));
+    }
+
+    @Test
+    void keepsEmptyStringAllowedWhenListed() {
+        StateVariableTypeDetails details = new StateVariableTypeDetails(Datatype.Builtin.STRING.getDatatype(), null,
+                new String[] { "", "Normal" }, null);
+
+        assertTrue(details.isAllowedValue(null));
+        assertFalse(details.isAllowedValue("Other"));
+    }
+
+    @Test
+    void doesNotLogArgumentRejectionAsAnXmlParsingWarning() throws Exception {
+        Logger logger = (Logger) LoggerFactory.getLogger(ReceivingAction.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            ActionException failure = incomingRemoteCallRestricted("SetMode", "NewMode", "", "Normal");
+            assertEquals(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE.getCode(), failure.getErrorCode());
+            assertTrue(appender.list.stream().noneMatch(event -> event.getLevel().isGreaterOrEqual(Level.WARN)));
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+    }
+
+    /**
+     * Invokes an action of {@link ActionSampleData.LocalTestServiceWithRestrictedValues} with the given
+     * input value, asserts the state of the service implementation afterwards and returns the failure, if any.
+     */
+    protected ActionException incomingRemoteCallRestricted(String actionName, String argumentName, String value,
+            Object expectedState) throws Exception {
+        MockUpnpService upnpService = new MockUpnpService();
+        upnpService.startup();
+        LocalDevice ld = ActionSampleData.createTestDevice(ActionSampleData.LocalTestServiceWithRestrictedValues.class);
+        LocalService service = ld.getServices()[0];
+        upnpService.getRegistry().addDevice(ld);
+
+        Action action = service.getAction(actionName);
+
+        URI controlURI = upnpService.getConfiguration().getNamespace().getControlPath(service);
+        StreamRequestMessage request = new StreamRequestMessage(UpnpRequest.Method.POST, controlURI);
+        addMandatoryRequestHeaders(service, action, request);
+        request.setBody(UpnpMessage.BodyType.STRING,
+                "<?xml version=\"1.0\"?>\n" + " <s:Envelope\n"
+                        + "     xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"\n"
+                        + "     s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\n" + "   <s:Body>\n"
+                        + "     <u:" + actionName + " xmlns:u=\"urn:schemas-upnp-org:service:Dimming:1\">\n"
+                        + "       <" + argumentName + ">" + value + "</" + argumentName + ">\n" + "     </u:"
+                        + actionName + ">\n" + "   </s:Body>\n" + " </s:Envelope>");
+
+        ReceivingAction prot = new ReceivingAction(upnpService, request);
+
+        prot.run();
+
+        StreamResponseMessage response = prot.getOutputMessage();
+        assertNotNull(response);
+
+        ActionSampleData.LocalTestServiceWithRestrictedValues impl = (ActionSampleData.LocalTestServiceWithRestrictedValues) service
+                .getManager().getImplementation();
+        assertEquals(expectedState, actionName.equals("SetMode") ? impl.getMode() : (Object) impl.getLoadLevelTarget());
+
+        IncomingActionResponseMessage responseMessage = new IncomingActionResponseMessage(response);
+        ActionInvocation responseInvocation = new ActionInvocation(action);
+        upnpService.getConfiguration().getSoapActionProcessor().readBody(responseMessage, responseInvocation);
+
+        assertEquals(response.getOperation().isFailed(), responseInvocation.getFailure() != null);
+        return responseInvocation.getFailure();
     }
 
     @Test

@@ -31,5 +31,6 @@ public enum Channel {
     SD,
     SL,
     SR,
-    T
+    T,
+    B
 }

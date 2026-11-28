@@ -50,7 +50,7 @@ import org.jupnp.support.renderingcontrol.lastchange.RenderingControlVariable;
         @UpnpStateVariable(name = "VolumeDB", sendEvents = false, datatype = "i2", allowedValueMinimum = -36864, allowedValueMaximum = 32767),
         @UpnpStateVariable(name = "Loudness", sendEvents = false, datatype = "boolean"),
         @UpnpStateVariable(name = "A_ARG_TYPE_Channel", sendEvents = false, allowedValuesEnum = Channel.class),
-        @UpnpStateVariable(name = "A_ARG_TYPE_PresetName", sendEvents = false, allowedValuesEnum = PresetName.class),
+        @UpnpStateVariable(name = "A_ARG_TYPE_PresetName", sendEvents = false, datatype = "string"),
         @UpnpStateVariable(name = "A_ARG_TYPE_InstanceID", sendEvents = false, datatype = "ui4")
 
 })
@@ -119,6 +119,9 @@ public abstract class AbstractAudioRenderingControl implements LastChangeDelegat
     @UpnpAction
     public void selectPreset(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
             @UpnpInputArgument(name = "PresetName") String presetName) throws RenderingControlException {
+        if (!PresetName.FactoryDefaults.name().equals(presetName)) {
+            throw new RenderingControlException(RenderingControlErrorCode.INVALID_PRESET_NAME);
+        }
     }
 
     @UpnpAction(out = @UpnpOutputArgument(name = "CurrentMute", stateVariable = "Mute"))

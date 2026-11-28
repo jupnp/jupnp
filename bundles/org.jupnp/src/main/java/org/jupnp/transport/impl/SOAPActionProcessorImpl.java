@@ -30,6 +30,7 @@ import org.jupnp.model.message.control.ActionMessage;
 import org.jupnp.model.message.control.ActionRequestMessage;
 import org.jupnp.model.message.control.ActionResponseMessage;
 import org.jupnp.model.meta.ActionArgument;
+import org.jupnp.model.meta.StateVariable;
 import org.jupnp.model.types.ErrorCode;
 import org.jupnp.model.types.InvalidValueException;
 import org.jupnp.transport.spi.SOAPActionProcessor;
@@ -339,6 +340,27 @@ public class SOAPActionProcessorImpl extends PooledXmlProcessor implements SOAPA
             throws ActionException {
         actionInvocation.setInput(readArgumentValues(actionRequestElement.getChildNodes(),
                 actionInvocation.getAction().getInputArguments()));
+        validateInputArgumentValues(actionInvocation);
+    }
+
+    /**
+     * Rejects input argument values outside the allowed value list or the allowed value
+     * range of the related state variable with the appropriate {@link ErrorCode}.
+     */
+    protected void validateInputArgumentValues(ActionInvocation actionInvocation) throws ActionException {
+        for (ActionArgumentValue inputValue : actionInvocation.getInput()) {
+            ActionArgument argument = inputValue.getArgument();
+            StateVariable stateVariable = argument.getAction().getService().getRelatedStateVariable(argument);
+            if (!stateVariable.getTypeDetails().isAllowedValue(inputValue.getValue())) {
+                String message = "Value of '" + argument.getName() + "' is not allowed for state variable '"
+                        + stateVariable.getName() + "'";
+                int errorCode = argument.getAllowedValueErrorCode();
+                if (errorCode != 0) {
+                    throw new ActionException(errorCode, message);
+                }
+                throw new ActionException(ErrorCode.ARGUMENT_VALUE_OUT_OF_RANGE, message);
+            }
+        }
     }
 
     /* ##################################################################################################### */

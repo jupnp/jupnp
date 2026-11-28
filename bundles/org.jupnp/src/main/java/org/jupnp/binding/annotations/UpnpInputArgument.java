@@ -29,4 +29,10 @@ public @interface UpnpInputArgument {
     String[] aliases() default {};
 
     String stateVariable() default "";
+
+    /**
+     * Service-specific SOAP fault code for an input outside the related state variable's allowed values.
+     * The default uses the generic "Argument Value Out of Range" fault.
+     */
+    int allowedValueErrorCode() default 0;
 }

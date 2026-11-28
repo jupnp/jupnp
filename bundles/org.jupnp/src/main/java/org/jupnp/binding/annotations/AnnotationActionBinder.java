@@ -133,7 +133,8 @@ public class AnnotationActionBinder {
                     validateType(stateVariable, getMethod().getParameterTypes()[i]);
 
                     ActionArgument inputArgument = new ActionArgument(argumentName, inputArgumentAnnotation.aliases(),
-                            stateVariable.getName(), ActionArgument.Direction.IN);
+                            stateVariable.getName(), ActionArgument.Direction.IN, false,
+                            inputArgumentAnnotation.allowedValueErrorCode());
 
                     list.add(inputArgument);
                 }

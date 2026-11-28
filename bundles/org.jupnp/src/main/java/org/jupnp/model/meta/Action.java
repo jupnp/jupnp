@@ -160,17 +160,25 @@ public class Action<S extends Service> implements Validatable {
 
         ActionArgument retValueArgument = null;
         int retValueArgumentIndex = 0;
+        boolean inputRetValueReported = false;
+        boolean multipleRetValuesReported = false;
         int i = 0;
         for (ActionArgument actionArgument : getArguments()) {
             // Check retval
             if (actionArgument.isReturnValue()) {
                 if (actionArgument.getDirection() == ActionArgument.Direction.IN) {
-                    SpecificationViolationReporter.report(getService().getDevice(),
-                            "Input argument can not have <retval/>");
+                    if (!inputRetValueReported) {
+                        SpecificationViolationReporter.report(getService().getDevice(),
+                                "Input argument can not have <retval/>");
+                        inputRetValueReported = true;
+                    }
                 } else {
-                    if (retValueArgument != null) {
+                    // Report once per action, not once per argument: a remote descriptor controls both the number
+                    // of arguments and the length of the action name repeated in each report
+                    if (retValueArgument != null && !multipleRetValuesReported) {
                         SpecificationViolationReporter.report(getService().getDevice(),
                                 "Only one argument of action '{}' can be <retval/>", getName());
+                        multipleRetValuesReported = true;
                     }
                     retValueArgument = actionArgument;
                     retValueArgumentIndex = i;
@@ -185,6 +193,7 @@ public class Action<S extends Service> implements Validatable {
                     SpecificationViolationReporter.report(getService().getDevice(),
                             "Argument '{}' of action '{}' is <retval/> but not the first OUT argument",
                             retValueArgument.getName(), getName());
+                    break;
                 }
             }
         }

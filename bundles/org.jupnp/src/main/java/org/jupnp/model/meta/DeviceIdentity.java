@@ -30,6 +30,13 @@ import org.jupnp.model.types.UDN;
  */
 public class DeviceIdentity implements Validatable {
 
+    /**
+     * Maximum accepted length of the UDN identifier string (without the "uuid:" prefix). A UDA 1.1 UUID has 36
+     * characters, UDA 1.0 leaves the format to the vendor. The UDN becomes part of the local URI of every resource
+     * registered for a device and its services, so the UDN of a remote device descriptor must not be unlimited.
+     */
+    public static final int MAX_UDN_LENGTH = 255;
+
     private final UDN udn;
     private final Integer maxAgeSeconds;
 
@@ -90,6 +97,10 @@ public class DeviceIdentity implements Validatable {
 
         if (getUdn() == null) {
             errors.add(new ValidationError(getClass(), "major", "Device has no UDN"));
+        } else if (getUdn().getIdentifierString() != null && getUdn().getIdentifierString().length() > MAX_UDN_LENGTH) {
+            // Not adding the value to the message on purpose, it can be as large as a remote descriptor
+            errors.add(new ValidationError(getClass(), "udn",
+                    "UDN must not be longer than " + MAX_UDN_LENGTH + " characters"));
         }
 
         return errors;
