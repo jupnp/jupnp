@@ -262,21 +262,24 @@ public class RouterImpl implements Router {
     @Override
     public List<NetworkAddress> getSearchResponseStreamServers(InetAddress receivedOn, InetAddress controlPoint)
             throws RouterException {
+        InetAddress address;
         lock(readLock);
         try {
             if (!enabled) {
                 return List.of();
             }
-            InetAddress address = selectUnicastAddress(receivedOn, controlPoint, true);
+            address = selectUnicastAddress(receivedOn, controlPoint, true);
             if (address == null) {
                 logger.debug("No bound stream server on the receiving network for {}", receivedOn);
                 return List.of();
             }
-            return List.of(new NetworkAddress(address, streamServers.get(address).getPort(),
-                    networkAddressFactory.getHardwareAddress(address)));
         } finally {
             unlock(readLock);
         }
+
+        // The advertised endpoint can be customized independently of the local UDP send socket.
+        List<NetworkAddress> endpoints = getActiveStreamServers(address);
+        return endpoints.isEmpty() ? List.of() : List.of(endpoints.get(0));
     }
 
     private InetAddress selectUnicastAddress(InetAddress preferred, InetAddress destination,

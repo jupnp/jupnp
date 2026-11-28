@@ -15,8 +15,12 @@
  */
 package org.jupnp.model.message.discovery;
 
+import java.net.InetAddress;
+import java.util.regex.Pattern;
+
 import org.jupnp.model.message.IncomingDatagramMessage;
 import org.jupnp.model.message.UpnpRequest;
+import org.jupnp.model.message.header.HostHeader;
 import org.jupnp.model.message.header.MANHeader;
 import org.jupnp.model.message.header.MXHeader;
 import org.jupnp.model.message.header.UpnpHeader;
@@ -27,8 +31,31 @@ import org.jupnp.model.types.NotificationSubtype;
  */
 public class IncomingSearchRequest extends IncomingDatagramMessage<UpnpRequest> {
 
+    private static final Pattern IPV4_MULTICAST_HOST = Pattern.compile("(?:22[4-9]|23[0-9])(?:[.][0-9]{1,3}){3}");
+
     public IncomingSearchRequest(IncomingDatagramMessage<UpnpRequest> source) {
         super(source);
+    }
+
+    public IncomingSearchRequest(IncomingDatagramMessage<UpnpRequest> source, InetAddress localAddress) {
+        super(source, localAddress);
+    }
+
+    /**
+     * Returns the target named by HOST on a unicast search. Multicast searches and legacy requests
+     * without a usable HOST keep the address of the receiving multicast interface.
+     */
+    public String getUnicastHost() {
+        HostHeader header = getHeaders().getFirstHeader(UpnpHeader.Type.HOST, HostHeader.class);
+        if (header == null) {
+            return null;
+        }
+        String host = header.getValue().getHost();
+        if (host == null || host.isEmpty() || host.regionMatches(true, 0, "[ff", 0, 3)
+                || IPV4_MULTICAST_HOST.matcher(host).matches()) {
+            return null;
+        }
+        return host;
     }
 
     public UpnpHeader getSearchTarget() {

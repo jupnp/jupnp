@@ -111,6 +111,17 @@ public interface NetworkAddressFactory {
             throws IllegalStateException;
 
     /**
+     * Finds a bound local address for a unicast search received on a wildcard SSDP socket.
+     *
+     * @param targetHost Host declared by the search request.
+     * @param remoteAddress Source address of the received datagram.
+     * @return A bound address, or <code>null</code> to keep the receiving interface's address.
+     */
+    default InetAddress getUnicastSearchAddress(String targetHost, InetAddress remoteAddress) {
+        return null;
+    }
+
+    /**
      * For debugging, logs all "usable" network interface(s) details with INFO level.
      */
     void logInterfaceInformation();

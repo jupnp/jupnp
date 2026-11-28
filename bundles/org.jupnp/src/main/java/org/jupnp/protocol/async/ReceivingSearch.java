@@ -111,6 +111,11 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
     @Override
     protected boolean waitBeforeExecution() throws InterruptedException {
 
+        if (getInputMessage().getUnicastHost() != null) {
+            // Only multicast searches require MX and a randomized response delay.
+            return true;
+        }
+
         Integer mx = getInputMessage().getMX();
 
         if (mx == null) {

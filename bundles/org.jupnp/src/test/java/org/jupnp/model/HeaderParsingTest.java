@@ -127,6 +127,11 @@ class HeaderParsingTest {
         header.setString("foo.bar");
         assertEquals("foo.bar", header.getValue().getHost());
         assertEquals(Constants.UPNP_MULTICAST_PORT, header.getValue().getPort());
+
+        header = new HostHeader();
+        header.setString("[ff02::c]:1900");
+        assertEquals("[ff02::c]", header.getValue().getHost());
+        assertEquals(Constants.UPNP_MULTICAST_PORT, header.getValue().getPort());
     }
 
     @Test

@@ -268,6 +268,29 @@ public class NetworkAddressFactoryImpl implements NetworkAddressFactory {
                 "Can't find any IPv4 or IPv6 address on interface: " + networkInterface.getDisplayName());
     }
 
+    @Override
+    public InetAddress getUnicastSearchAddress(String targetHost, InetAddress remoteAddress) {
+        InetAddress ipv6Target = null;
+        if (targetHost.startsWith("[") && targetHost.endsWith("]")) {
+            try {
+                ipv6Target = InetAddress.getByName(targetHost);
+            } catch (UnknownHostException e) {
+                logger.trace("Invalid IPv6 literal in unicast search HOST: {}", targetHost);
+            }
+        }
+
+        // Match only addresses already bound locally. Names from the request never trigger DNS lookups.
+        synchronized (bindAddresses) {
+            for (InetAddress local : bindAddresses) {
+                if (local.getAddress().length == remoteAddress.getAddress().length
+                        && (local.equals(ipv6Target) || local.getHostAddress().equals(targetHost))) {
+                    return local;
+                }
+            }
+        }
+        return getBindAddressInSubnetOf(remoteAddress);
+    }
+
     protected List<InterfaceAddress> getInterfaceAddresses(NetworkInterface networkInterface) {
         return networkInterface.getInterfaceAddresses();
     }
